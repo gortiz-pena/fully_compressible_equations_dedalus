@@ -90,8 +90,8 @@ aspect = float(args['--aspect'])
 
 logger.info("Simulation resolution = {}x{}x{}".format(nx, ny, nz))
 
-x_basis = de.Fourier(  'x', nx, interval = [-aspect/2, aspect/2], dealias=3/2)
-y_basis = de.Fourier(  'y', ny, interval = [-aspect/2, aspect/2], dealias=3/2)
+x_basis = de.Fourier(  'x', nx, interval = [0, aspect], dealias=3/2)
+y_basis = de.Fourier(  'y', ny, interval = [0, aspect], dealias=3/2)
 z_basis = de.Chebyshev('z', nz, interval = [0, 1],                dealias=3/2)
 
 bases = [x_basis, y_basis, z_basis]
@@ -141,6 +141,7 @@ Pr = float(args['--Prandtl'])
 Pm = float(args['--Pm'])
 
 logger.info("Ra = {:.3e}, Ta = {:.3e}, Pr = {:2g}, Pm = {:2g}".format(Ra, Ta, Pr, Pm))
+logger.info("Ω0 = {:.3e}, K = {:.3e}, μ = {:2e}, η = {:2e}".format(Ω0, K, μ, η))
 
 
 # Atmosphere
@@ -178,19 +179,17 @@ problem.substitutions['visc_u']   = "( Lap(u, u_z) + 1/3*dx(DivU) )"
 problem.substitutions['visc_v']   = "( Lap(v, v_z) + 1/3*dy(DivU) )"
 problem.substitutions['visc_w']   = "( Lap(w, w_z) + 1/3*Div(u_z, v_z, dz(w_z)) )"                
 
-problem.substitutions['visc_u_L'] = '2*μ*visc_u*(1/rho0)'
-problem.substitutions['visc_u_R'] = '2*μ*visc_u*(1/rho_full - 1/rho0)'
-problem.substitutions['visc_v_L'] = '2*μ*visc_v*(1/rho0)'
-problem.substitutions['visc_v_R'] = '2*μ*visc_v*(1/rho_full - 1/rho0)'
-problem.substitutions['visc_w_L'] = '2*μ*visc_w*(1/rho0)'
-problem.substitutions['visc_w_R'] = '2*μ*visc_w*(1/rho_full - 1/rho0)'
+problem.substitutions['visc_u_L'] = 'μ*visc_u*(2/rho0)'
+problem.substitutions['visc_v_L'] = 'μ*visc_v*(2/rho0)'
+problem.substitutions['visc_w_L'] = 'μ*visc_w*(2/rho0)'
+problem.substitutions['visc_u_R'] = 'μ*visc_u*(1/rho_full - 2/rho0)'
+problem.substitutions['visc_v_R'] = 'μ*visc_v*(1/rho_full - 2/rho0)'
+problem.substitutions['visc_w_R'] = 'μ*visc_w*(1/rho_full - 2/rho0)'
 
-problem.substitutions['visc_heat']  = " 2*μ*(dx(u)*Sig_xx + dy(v)*Sig_yy + w_z*Sig_zz + Sig_xy**2 + Sig_xz**2 + Sig_yz**2)"
-problem.substitutions['ohm_heat']  = 'μ0*η*(Jx**2 + Jy**2 + Jz**2)'
+problem.substitutions['visc_heat']  = " μ*(dx(u)*Sig_xx + dy(v)*Sig_yy + w_z*Sig_zz + Sig_xy**2 + Sig_xz**2 + Sig_yz**2)"
+problem.substitutions['ohm_heat']   = 'μ0*η*(Jx**2 + Jy**2 + Jz**2)'
 
 problem = define_output_subs(problem)
-
-
 
 ### 4.Setup equations and Boundary Conditions
 problem.add_equation("Bx + dz(Ay) - dy(Az) = 0") #
@@ -204,10 +203,10 @@ problem.add_equation("T0*(dt(ln_rho1) + w*ln_rho0_z + DivU) = -T0*UdotGrad(ln_rh
 problem.add_equation("dt(Ax) + μ0*η*Jx + dx(phi) = v*Bz - w*By") #
 problem.add_equation("dt(Ay) + μ0*η*Jy + dy(phi) = w*Bx - u*Bz") #
 problem.add_equation("dt(Az) + μ0*η*Jz + dz(phi) = u*By - v*Bx") #
-problem.add_equation("T0*(dt(u)  + R*(dx(T1) + T0*dz(ln_rho1))                - 2*Ω0*v + visc_u_L) = T0*(-UdotGrad(u, u_z) -R*T1*dx(ln_rho1) + (1/rho_full)*(Jy*Bz - Jz*By) + visc_u_R)") #
-problem.add_equation("T0*(dt(v)  + R*(dy(T1) + T0*dy(ln_rho1))                + 2*Ω0*u + visc_v_L) = T0*(-UdotGrad(v, v_z) -R*T1*dy(ln_rho1) + (1/rho_full)*(Jz*Bx - Jx*Bz) + visc_v_R)") #
-problem.add_equation("T0*(dt(w)  + R*(T1_z   + T0*dz(ln_rho1) + T1*ln_rho0_z)          + visc_w_L) = T0*(-UdotGrad(w, w_z) -R*T1*dz(ln_rho1) + (1/rho_full)*(Jx*By - Jy*Bx) + visc_w_R)") ##
-problem.add_equation("T0*(dt(T1) + w*T0_z + (ɣ-1)*T0*DivU - (ɣ*K)*Lap(T1, T1_z)/rho0             ) = T0*(-UdotGrad(T1, T1_z) + (ɣ-1)*T1*DivU + (ɣ*K)*Lap(T1, T1_z)*(1/rho_full - 1/rho0) + visc_heat + ohm_heat)") #
+problem.add_equation("T0*(dt(u)  + R*(dx(T1) + T0*dx(ln_rho1))                - 2*Ω0*v - visc_u_L) = T0*(-UdotGrad(u, u_z) - R*T1*dx(ln_rho1) + (1/rho_full)*(Jy*Bz - Jz*By) + visc_u_R)") #
+problem.add_equation("T0*(dt(v)  + R*(dy(T1) + T0*dy(ln_rho1))                + 2*Ω0*u - visc_v_L) = T0*(-UdotGrad(v, v_z) - R*T1*dy(ln_rho1) + (1/rho_full)*(Jz*Bx - Jx*Bz) + visc_v_R)") #
+problem.add_equation("T0*(dt(w)  + R*(T1_z   + T0*dz(ln_rho1) + T1*ln_rho0_z)          - visc_w_L) = T0*(-UdotGrad(w, w_z) - R*T1*dz(ln_rho1) + (1/rho_full)*(Jx*By - Jy*Bx) + visc_w_R)") ##
+problem.add_equation("T0*(dt(T1) + w*T0_z + (ɣ-1)*T0*DivU - 2*(ɣ*K)*Lap(T1, T1_z)/rho0           ) = T0*(-UdotGrad(T1, T1_z) - (ɣ-1)*T1*DivU + (ɣ*K)*Lap(T1, T1_z)*(1/rho_full - 2/rho0) + visc_heat + ohm_heat)") #
 problem.add_equation("Div(Ax, Ay, dz(Az)) = 0") #
 
 logger.info("Thermal BC: fixed temperature")
@@ -269,7 +268,7 @@ if restart is None:
     T1 = solver.state['T1']
     T1_z = solver.state['T1_z']
     T1.set_scales(domain.dealias)
-    T1['g'] = 0.002*(f1*g1*h1 + f2*g2*g2)
+    T1['g'] = 2e-3*(f1*g1*h1 + f2*g2*g2)
     T1.differentiate('z', out=T1_z)
 
     Bz   = solver.state['Bz']
@@ -293,7 +292,7 @@ else:                            solver.stop_sim_time = 1 + solver.sim_time
 solver.stop_wall_time = run_time_wall*3600.
 
 #TODO: Check max_dt, cfl, etc.
-max_dt    = 0.1
+max_dt    = np.min((1e-1, t_diff, t_buoy))
 if dt is None: dt = max_dt
 analysis_tasks = initialize_output(solver, domain, data_dir, mode=mode)
 
@@ -333,7 +332,7 @@ try:
                 field.require_grid_space()
         
                    
-        if effective_iter % 10 == 0:
+        if effective_iter % 1 == 0:
             Re_avg = flow.grid_average('Re')
             log_string =  'Iteration: {:5d}, '.format(solver.iteration)
             log_string += 'Time: {:8.3e} ({:8.3e} buoy / {:8.3e} diff), dt: {:8.3e}, '.format(solver.sim_time, solver.sim_time/t_buoy, solver.sim_time/t_diff,  dt)
