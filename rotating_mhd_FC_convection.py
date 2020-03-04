@@ -41,7 +41,6 @@ from mpi4py import MPI
 from dedalus import public as de
 from dedalus.extras import flow_tools
 from dedalus.tools  import post
-from dedalus.tools.config import config
 
 from logic.output import define_output_subs, initialize_output
 from logic.checkpointing import Checkpoint
@@ -92,7 +91,7 @@ logger.info("Simulation resolution = {}x{}x{}".format(nx, ny, nz))
 
 x_basis = de.Fourier(  'x', nx, interval = [0, aspect], dealias=3/2)
 y_basis = de.Fourier(  'y', ny, interval = [0, aspect], dealias=3/2)
-z_basis = de.Chebyshev('z', nz, interval = [0, 1],                dealias=3/2)
+z_basis = de.Chebyshev('z', nz, interval = [0, 1],      dealias=3/2)
 
 bases = [x_basis, y_basis, z_basis]
 domain = de.Domain(bases, grid_dtype=np.float64, mesh=mesh)
@@ -102,7 +101,6 @@ problem = de.IVP(domain, variables=variables, ncc_cutoff=1e-10)
 
 problem.parameters['Lx'] = problem.parameters['Ly'] = aspect
 problem.parameters['Lz'] = d = 1
-
 
 # Nondimensionalization
 problem.parameters['g']  = g  = 1
@@ -308,6 +306,7 @@ flow = flow_tools.GlobalFlowProperty(solver, cadence=1)
 flow.add_property("Re_rms", name='Re')
 flow.add_property("KE", name='KE')
 flow.add_property("B_rms", name='B_rms')
+flow.add_property("Div(Bx, By, dz(Bz))", name='DivB')
 
 Hermitian_cadence = 100
 first_step = True
@@ -339,6 +338,7 @@ try:
             log_string += 'Re: {:8.3e}/{:8.3e}, '.format(Re_avg, flow.max('Re'))
             log_string += 'KE: {:8.3e}/{:8.3e}, '.format(flow.grid_average('KE'), flow.max('KE'))
             log_string += 'B:  {:8.3e}/{:8.3e}'.format(flow.grid_average('B_rms'), flow.max('B_rms'))
+            log_string += 'divB:  {:8.3e}/{:8.3e}'.format(flow.grid_average('DivB'), flow.max('DivB'))
             logger.info(log_string)
 except:
     raise
