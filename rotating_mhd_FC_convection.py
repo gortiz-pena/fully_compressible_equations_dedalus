@@ -26,7 +26,7 @@ Options:
 
     --label=<label>            Optional additional case name label
     --root_dir=<dir>           Root directory for output [default: ./]
-    --safety=<s>               CFL safety factor [default: 0.8]
+    --safety=<s>               CFL safety factor [default: 0.4]
     --RK443                    Use RK443 instead of RK222
 """
 import logging
@@ -337,7 +337,7 @@ try:
             log_string += 'Time: {:8.3e} ({:8.3e} buoy / {:8.3e} diff), dt: {:8.3e}, '.format(solver.sim_time, solver.sim_time/t_buoy, solver.sim_time/t_diff,  dt)
             log_string += 'Re: {:8.3e}/{:8.3e}, '.format(Re_avg, flow.max('Re'))
             log_string += 'KE: {:8.3e}/{:8.3e}, '.format(flow.grid_average('KE'), flow.max('KE'))
-            log_string += 'B:  {:8.3e}/{:8.3e}'.format(flow.grid_average('B_rms'), flow.max('B_rms'))
+            log_string += 'B:  {:8.3e}/{:8.3e}, '.format(flow.grid_average('B_rms'), flow.max('B_rms'))
             log_string += 'divB:  {:8.3e}/{:8.3e}'.format(flow.grid_average('DivB'), flow.max('DivB'))
             logger.info(log_string)
 except:
