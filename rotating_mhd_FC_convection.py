@@ -42,7 +42,8 @@ from dedalus import public as de
 from dedalus.extras import flow_tools
 from dedalus.tools  import post
 
-from logic.output import define_output_subs, initialize_output
+from logic.output        import initialize_output
+from logic.substitutions import define_output_subs
 from logic.checkpointing import Checkpoint
 
 logger = logging.getLogger(__name__)
@@ -78,9 +79,6 @@ if mesh is not None:
     mesh = mesh.split(',')
     mesh = [int(mesh[0]), int(mesh[1])]
 
-
-
-
 ### 3. Setup Dedalus domain, problem, and substitutions/parameters
 nx = int(args['--nx'])
 ny = int(args['--ny'])
@@ -95,6 +93,23 @@ z_basis = de.Chebyshev('z', nz, interval = [0, 1],      dealias=3/2)
 
 bases = [x_basis, y_basis, z_basis]
 domain = de.Domain(bases, grid_dtype=np.float64, mesh=mesh)
+z = domain.grid(-1)
+
+# Construct atmosphere
+T0        = domain.new_field()
+T0_z      = domain.new_field()
+rho0      = domain.new_field()
+ln_rho0_z = domain.new_field()
+for f in [T0, T0_z, rho0, ln_rho0_z]:
+    f.meta['x', 'y']['constant'] = True
+
+T0['g']   = (5/12)*(4 - 3*z)
+rho0['g'] = (2/ 5)*(4 - 3*z)
+T0.differentiate('z', out=T0_z)
+rho0.differentiate('z', out=ln_rho0_z)
+ln_rho0_z['g'] /= rho0['g']
+
+
 
 variables = ['T1', 'T1_z', 'ln_rho1', 'u', 'v', 'w', 'u_z', 'v_z', 'w_z', 'Bx', 'By', 'Bz', 'Ax', 'Ay', 'Az', 'phi']
 problem = de.IVP(domain, variables=variables, ncc_cutoff=1e-10)
@@ -117,14 +132,16 @@ Pm = float(args['--Pm'])
 
 logger.info("resolution = {}x{}x{}".format(nx, ny, nz))
 
-#ds_dz_m = (1/gamma) * grad T_m / T_m  - (1-gamma)/gamma * grad rho_m / rho_m  
-#...with grad T_m = -5/4, grad rho_m = -6/5, T_m = 25/24, rho_m = 1
-rho_m = 1
-ds_dz_m = (1/ɣ)*(-5/4) / (25/24) - (1-ɣ)/ɣ * (-6/5) / rho_m
-K  = np.sqrt(g*d**4*rho_m**2 * Cp * -1 * ds_dz_m / Ra / Pr)
+ds_dz_over_cp = domain.new_field()
+ds_dz_over_cp.set_scales(domain.dealias)
+ds_dz_over_cp['g'] =  (1/ɣ)*T0_z['g']/T0['g'] - (1-ɣ)/ɣ * ln_rho0_z['g']
+
+rho_m   = np.mean(rho0.interpolate(z=0.5)['g'])
+ds_dz_m = np.mean(ds_dz_over_cp.interpolate(z=0.5)['g'])
+K  = rho_m*Cp*np.sqrt(g*d**4*rho_m**2 * Cp * -1 * ds_dz_m / Ra / Pr)
 μ  = K * Pr / Cp
-η  = μ * Pm
-Ω0 = (μ / 4 / d**4) * np.sqrt(Ta)
+η  = μ * Pm / rho_m
+Ω0 = (μ / rho_m / 2 / d**2) * np.sqrt(Ta)
 
 problem.parameters['Ω0'] = Ω0 
 problem.parameters['K']  = K 
@@ -132,22 +149,15 @@ problem.parameters['μ']  = μ
 problem.parameters['η']  = η 
 problem.substitutions['R']  = '(ɣ-1)*Cv'
 
-### 2. Simulation parameters
-Ra = float(args['--Rayleigh'])
-Ta = float(args['--Taylor'])
-Pr = float(args['--Prandtl'])
-Pm = float(args['--Pm'])
-
 logger.info("Ra = {:.3e}, Ta = {:.3e}, Pr = {:2g}, Pm = {:2g}".format(Ra, Ta, Pr, Pm))
 logger.info("Ω0 = {:.3e}, K = {:.3e}, μ = {:2e}, η = {:2e}".format(Ω0, K, μ, η))
 
-
 # Atmosphere
-problem.substitutions['T0']               = '(5/12)*(4-3*z)'
-problem.substitutions['T0_z']             = '(-5/4)'
-problem.substitutions['rho0']             = '(2/5)*(4-3*z)'
-problem.substitutions['ln_rho0']          = '(log(2/5) + log(4-3*z))'
-problem.substitutions['ln_rho0_z']        = '(-3/(4-3*z))'
+problem.parameters['T0']                  = T0
+problem.parameters['T0_z']                = T0_z
+problem.parameters['rho0']                = rho0
+problem.parameters['ln_rho0_z']           = ln_rho0_z
+problem.substitutions['ln_rho0']          = '(log(rho0))'
 problem.substitutions['rho_full']         = '(rho0*exp(ln_rho1))'
 problem.substitutions['T_full']           = '(T0 + T1)'
 
@@ -177,12 +187,12 @@ problem.substitutions['visc_u']   = "( Lap(u, u_z) + 1/3*dx(DivU) )"
 problem.substitutions['visc_v']   = "( Lap(v, v_z) + 1/3*dy(DivU) )"
 problem.substitutions['visc_w']   = "( Lap(w, w_z) + 1/3*Div(u_z, v_z, dz(w_z)) )"                
 
-problem.substitutions['visc_u_L'] = 'μ*visc_u*(2/rho0)'
-problem.substitutions['visc_v_L'] = 'μ*visc_v*(2/rho0)'
-problem.substitutions['visc_w_L'] = 'μ*visc_w*(2/rho0)'
-problem.substitutions['visc_u_R'] = 'μ*visc_u*(1/rho_full - 2/rho0)'
-problem.substitutions['visc_v_R'] = 'μ*visc_v*(1/rho_full - 2/rho0)'
-problem.substitutions['visc_w_R'] = 'μ*visc_w*(1/rho_full - 2/rho0)'
+problem.substitutions['visc_u_L'] = 'μ*visc_u*(1/rho0)'
+problem.substitutions['visc_v_L'] = 'μ*visc_v*(1/rho0)'
+problem.substitutions['visc_w_L'] = 'μ*visc_w*(1/rho0)'
+problem.substitutions['visc_u_R'] = 'μ*visc_u*(1/rho_full - 1/rho0)'
+problem.substitutions['visc_v_R'] = 'μ*visc_v*(1/rho_full - 1/rho0)'
+problem.substitutions['visc_w_R'] = 'μ*visc_w*(1/rho_full - 1/rho0)'
 
 problem.substitutions['visc_heat']  = " μ*(dx(u)*Sig_xx + dy(v)*Sig_yy + w_z*Sig_zz + Sig_xy**2 + Sig_xz**2 + Sig_yz**2)"
 problem.substitutions['ohm_heat']   = 'μ0*η*(Jx**2 + Jy**2 + Jz**2)'
@@ -211,11 +221,14 @@ logger.info("Thermal BC: fixed temperature")
 problem.add_bc(" left(T1) = 0")
 problem.add_bc("right(T1)  = 0")
 
-logger.info("Magnetic BC: Horizontal components set to zero")
-problem.add_bc(" left(Bx) = 0")
-problem.add_bc("right(Bx) = 0")
-problem.add_bc(" left(By) = 0")
-problem.add_bc("right(By) = 0")
+logger.info("Magnetic BC: Bx = By = 0")
+problem.add_bc(" left(dz(Ax)) = 0")
+problem.add_bc("right(dz(Ax)) = 0")
+problem.add_bc(" left(dz(Ay)) = 0")
+problem.add_bc("right(dz(Ay)) = 0")
+problem.add_bc(" left(Az) = 0")
+problem.add_bc("right(Az) = 0",  condition="(nx != 0) or (ny != 0)")
+problem.add_bc("right(phi) = 0", condition="(nx == 0) and (ny == 0)")
 
 logger.info("Horizontal velocity BC: stress free")
 problem.add_bc(" left(u_z) = 0")
@@ -227,8 +240,6 @@ logger.info("Vertical velocity BC: impenetrable")
 problem.add_bc( "left(w) = 0")
 problem.add_bc("right(w) = 0")
 
-problem.add_bc(" left(phi) = 0")
-problem.add_bc("right(phi) = 0")
 
 ### 5. Build solver
 # Note: SBDF2 timestepper does not currently work with AE.
@@ -266,7 +277,7 @@ if restart is None:
     T1 = solver.state['T1']
     T1_z = solver.state['T1_z']
     T1.set_scales(domain.dealias)
-    T1['g'] = 2e-3*(f1*g1*h1 + f2*g2*g2)
+    T1['g'] = 2e-3*(f1*g1*h1 + f2*g2*h2)
     T1.differentiate('z', out=T1_z)
 
     Bz   = solver.state['Bz']
