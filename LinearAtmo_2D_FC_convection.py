@@ -43,6 +43,7 @@ from dedalus.tools  import post
 from logic.output        import initialize_output
 from logic.checkpointing import Checkpoint
 from logic.fc_equations  import FCEquations2D
+from logic.linear_atmosphere import LinearAtmosphere
 
 logger = logging.getLogger(__name__)
 args = docopt(__doc__)
@@ -92,69 +93,18 @@ bases = [x_basis, z_basis]
 domain = de.Domain(bases, grid_dtype=np.float64, mesh=mesh)
 z = domain.grid(-1)
 
-# Construct atmosphere
-T0        = domain.new_field()
-T0_z      = domain.new_field()
-rho0      = domain.new_field()
-ln_rho0_z = domain.new_field()
-for f in [T0, T0_z, rho0, ln_rho0_z]:
-    f.meta['x']['constant'] = True
-
-T0['g']   = (5/12)*(4 - 3*z)
-rho0['g'] = (2/ 5)*(4 - 3*z)
-T0.differentiate('z', out=T0_z)
-rho0.differentiate('z', out=ln_rho0_z)
-ln_rho0_z['g'] /= rho0['g']
-
 equations = FCEquations2D()
-
-
 problem = de.IVP(domain, variables=equations.variables, ncc_cutoff=1e-10)
-
-problem.parameters['Lx'] = problem.parameters['Ly'] = aspect
-problem.parameters['Lz'] = d = 1
-
-# Nondimensionalization
-problem.parameters['g']  = g  = 1
-problem.parameters['μ0'] = μ0 = 1
-problem.parameters['Cp'] = Cp = 1
-problem.parameters['Cv'] = Cv = 3/5
-problem.parameters['ɣ']  = ɣ  = 5/3
+atmosphere = LinearAtmosphere(domain, problem)
 
 ### 2. Simulation parameters
 Ra = float(args['--Rayleigh'])
 Pr = float(args['--Prandtl'])
+t_buoy, t_diff = atmosphere.set_parameters(Ra=Ra, Pr=Pr, aspect=aspect)
 
-logger.info("resolution = {}x{}x{}".format(nx, ny, nz))
-
-ds_dz_over_cp = domain.new_field()
-ds_dz_over_cp.set_scales(domain.dealias)
-ds_dz_over_cp['g'] =  (1/ɣ)*T0_z['g']/T0['g'] - (1-ɣ)/ɣ * ln_rho0_z['g']
-
-rho_m   = np.mean(rho0.interpolate(z=0.5)['g'])
-ds_dz_m = np.mean(ds_dz_over_cp.interpolate(z=0.5)['g'])
-K  = rho_m*Cp*np.sqrt(g*d**4*rho_m**2 * Cp * -1 * ds_dz_m / Ra / Pr)
-μ  = K * Pr / Cp
-
-problem.parameters['K']     = K 
-problem.parameters['μ']     = μ
-problem.substitutions['R']                 = '(ɣ-1)*Cv'
-problem.substitutions['visc_scale']        = 'μ'
-problem.substitutions['cond_scale']        = '(K)'
-
-logger.info("Ra = {:.3e}, Pr = {:2g}".format(Ra, Pr))
-logger.info("K = {:.3e}, η = {:2e}".format(K, μ))
-
-# Atmosphere
-problem.parameters['T0']                  = T0
-problem.parameters['T0_z']                = T0_z
-problem.parameters['rho0']                = rho0
-problem.parameters['ln_rho0_z']           = ln_rho0_z
-
-# substitutions
-problem = equations.define_subs(problem)
 
 ### 4.Setup equations and Boundary Conditions
+problem = equations.define_subs(problem)
 for k, eqn in equations.equations.items():
     logger.info('Adding eqn "{:13s}" of form: "{:s}"'.format(k, eqn))
     problem.add_equation(eqn)
@@ -176,11 +126,6 @@ else:
 cfl_safety = float(args['--safety'])
 solver = problem.build_solver(ts)
 logger.info('Solver built')
-
-delta_S = np.abs(np.log(1/4))
-t_buoy  = np.sqrt(g*Cp*d/delta_S) 
-t_diff  = np.sqrt(d/μ)
-
 
 ### 6. Set initial conditions: noise or loaded checkpoint
 checkpoint = Checkpoint(data_dir)

@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 class FCMHDEquations():
     
     def __init__(self):
-        self.variables  = ['T1', 'T1_z', 'ln_rho1', 'u', 'v', 'w', 'u_z', 'v_z', 'w_z', 'Bx', 'By', 'Bz', 'Ax', 'Ay', 'Az', 'phi']
+        self.variables       = ['T1', 'T1_z', 'ln_rho1', 'u', 'v', 'w', 'u_z', 'v_z', 'w_z', 'Bx', 'By', 'Bz', 'Ax', 'Ay', 'Az', 'phi']
         self.necessary_terms = ['R', 'visc_scale', 'cond_scale', 'ohm_scale', 'coriolis_scale', 'ɣ', 'g', 'Cv', 'Cp', 'T0', 'T0_z', 'rho0', 'ln_rho0_z']
         self._define_equations()
         self._define_BCs()
