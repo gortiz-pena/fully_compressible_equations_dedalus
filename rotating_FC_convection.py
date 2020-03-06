@@ -2,13 +2,12 @@
 Dedalus script for fully compressible convection.
 
 Usage:
-    rotating_mhd_FC_convection.py [options] 
+    rotating_FC_convection.py [options] 
 
 Options:
     --Rayleigh=<Rayleigh>      Rayleigh number [default: 3e7]
     --Prandtl=<Prandtl>        Prandtl number = nu/kappa [default: 1]
     --Taylor=<Taylor>          Taylor number [default: 5e8]
-    --Pm=<Pm>                  Mag. Prandtl number [default: 1]
     --nz=<nz>                  Vertical resolution [default: 256]
     --nx=<nx>                  Horizontal resolution [default: 256]
     --ny=<nx>                  Horizontal resolution [default: 256]
@@ -44,7 +43,7 @@ from dedalus.tools  import post
 
 from logic.output        import initialize_output
 from logic.checkpointing import Checkpoint
-from logic.fc_equations  import FCMHDEquations
+from logic.fc_equations  import FCEquations3D
 
 logger = logging.getLogger(__name__)
 args = docopt(__doc__)
@@ -53,7 +52,7 @@ args = docopt(__doc__)
 data_dir = args['--root_dir'] + '/' + sys.argv[0].split('.py')[0]
 
 
-data_dir += "_Ra{}_Ta{}_Pr{}_Pm{}_a{}".format(args['--Rayleigh'], args['--Taylor'], args['--Prandtl'], args['--Pm'], args['--aspect'])
+data_dir += "_Ra{}_Ta{}_Pr{}__a{}".format(args['--Rayleigh'], args['--Taylor'], args['--Prandtl'], args['--aspect'])
 if args['--label'] is not None:
     data_dir += "_{}".format(args['--label'])
 data_dir += '/'
@@ -109,7 +108,7 @@ T0.differentiate('z', out=T0_z)
 rho0.differentiate('z', out=ln_rho0_z)
 ln_rho0_z['g'] /= rho0['g']
 
-equations = FCMHDEquations()
+equations = FCEquations3D()
 
 
 problem = de.IVP(domain, variables=equations.variables, ncc_cutoff=1e-10)
@@ -128,7 +127,6 @@ problem.parameters['ɣ']  = ɣ  = 5/3
 Ra = float(args['--Rayleigh'])
 Ta = float(args['--Taylor'])
 Pr = float(args['--Prandtl'])
-Pm = float(args['--Pm'])
 
 logger.info("resolution = {}x{}x{}".format(nx, ny, nz))
 
@@ -140,7 +138,6 @@ rho_m   = np.mean(rho0.interpolate(z=0.5)['g'])
 ds_dz_m = np.mean(ds_dz_over_cp.interpolate(z=0.5)['g'])
 K  = rho_m*Cp*np.sqrt(g*d**4*rho_m**2 * Cp * -1 * ds_dz_m / Ra / Pr)
 μ  = K * Pr / Cp
-η  = μ * Pm / rho_m
 Ω0 = (μ / rho_m / 2 / d**2) * np.sqrt(Ta)
 
 problem.parameters['Ω0']    = Ω0 
@@ -150,11 +147,10 @@ problem.parameters['η']     = η
 problem.substitutions['R']                 = '(ɣ-1)*Cv'
 problem.substitutions['visc_scale']        = 'μ'
 problem.substitutions['cond_scale']        = '(K)'
-problem.substitutions['ohm_scale']         = 'μ0*η'
 problem.substitutions['coriolis_scale']    = '2*Ω0'
 
-logger.info("Ra = {:.3e}, Ta = {:.3e}, Pr = {:2g}, Pm = {:2g}".format(Ra, Ta, Pr, Pm))
-logger.info("Ω0 = {:.3e}, K = {:.3e}, μ = {:2e}, η = {:2e}".format(Ω0, K, μ, η))
+logger.info("Ra = {:.3e}, Ta = {:.3e}, Pr = {:2g}, ".format(Ra, Ta, Pr))
+logger.info("Ω0 = {:.3e}, K = {:.3e}, μ = {:2e}".format(Ω0, K, μ))
 
 # Atmosphere
 problem.parameters['T0']                  = T0
@@ -170,7 +166,7 @@ for k, eqn in equations.equations.items():
     logger.info('Adding eqn "{:13s}" of form: "{:s}"'.format(k, eqn))
     problem.add_equation(eqn)
 
-bcs = ['temp', 'noHorizB', 'stressfree', 'impenetrable']
+bcs = ['temp', 'stressfree', 'impenetrable']
 for k, bc in equations.BCs.items():
     for bc_type in bcs:
         if bc_type in k:
@@ -216,10 +212,6 @@ if restart is None:
     T1['g'] = 2e-3*(f1*g1*h1 + f2*g2*h2)
     T1.differentiate('z', out=T1_z)
 
-    Bz   = solver.state['Bz']
-    Bz.set_scales(domain.dealias)
-    Bz['g'] = -3e-6*np.cos(20*np.pi*x_de/aspect)*np.cos(20*np.pi*y_de/aspect)
-
     dt = None
     mode = 'overwrite'
 else:
@@ -239,7 +231,7 @@ solver.stop_wall_time = run_time_wall*3600.
 #TODO: Check max_dt, cfl, etc.
 max_dt    = np.min((1e-1, t_diff, t_buoy))
 if dt is None: dt = max_dt
-analysis_tasks = initialize_output(solver, domain, data_dir, mode=mode)
+analysis_tasks = initialize_output(solver, domain, data_dir, mode=mode, magnetic=False)
 
 # CFL
 CFL = flow_tools.CFL(solver, initial_dt=dt, cadence=1, safety=cfl_safety,
@@ -252,8 +244,6 @@ CFL.add_velocities(('u', 'v', 'w'))
 flow = flow_tools.GlobalFlowProperty(solver, cadence=1)
 flow.add_property("Re_rms", name='Re')
 flow.add_property("KE", name='KE')
-flow.add_property("B_rms", name='B_rms')
-flow.add_property("Div(Bx, By, dz(Bz))", name='DivB')
 
 Hermitian_cadence = 100
 first_step = True
@@ -284,8 +274,6 @@ try:
             log_string += 'Time: {:8.3e} ({:8.3e} buoy / {:8.3e} diff), dt: {:8.3e}, '.format(solver.sim_time, solver.sim_time/t_buoy, solver.sim_time/t_diff,  dt)
             log_string += 'Re: {:8.3e}/{:8.3e}, '.format(Re_avg, flow.max('Re'))
             log_string += 'KE: {:8.3e}/{:8.3e}, '.format(flow.grid_average('KE'), flow.max('KE'))
-            log_string += 'B:  {:8.3e}/{:8.3e}, '.format(flow.grid_average('B_rms'), flow.max('B_rms'))
-            log_string += 'divB:  {:8.3e}/{:8.3e}'.format(flow.grid_average('DivB'), flow.max('DivB'))
             logger.info(log_string)
 except:
     raise
