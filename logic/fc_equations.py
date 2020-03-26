@@ -4,10 +4,33 @@ from collections import OrderedDict
 logger = logging.getLogger(__name__)
 
 class FCMHDEquations():
+    """
+    Definitions for the implementation of the fully compressible, magnetohydrodynamic equations in cartesian domains in Dedalus.
+    This implementation assumes that the dynamic diffusivities have a constant, uniform value throughout the domain and does not evolve in time.
+    In order for these equations to function properly, the Dedalus problem must have the following atmospheric or equation properties specified:
+        R         - The ideal gas constant, where P = R * rho * T
+        μ         - The dynamic viscosity, where μ = rho * nu (nu is the viscous diffusivity)
+        K         - The thermal conductivity, where K = rho * Cp * chi (chi is the thermal diffusivity)
+        Ω0        - The angular frequency of global rotation
+        φ         - The angle between the gravity and rotation vectors (assumes rotation vector is in the y-z plane).
+        ohm_scale - scale of ohmic dissipation, e.g., μ0*η in dimensional equations
+        ɣ         - the adiabatic index, 5/3 for a monatomic ideal gas
+        g         - gravitational acceleration
+        Cv        - specific heat at constant volume
+        Cp        - specific heat at constant pressure
+        T0        - Initial temperature stratification
+        T0_z      - z-derivative of T0
+        rho0      - Initial density stratification
+        ln_rho0_z - the gradient of the initial density stratification
+        c_scale   - A scaling factor on the continuity equation (if unsure, set to 1)
+        m_scale   - A scaling factor on the momentum equation (if unsure, set to 1)
+        e_scale   - A scaling factor on the energy equation (if unsure, set to 1)
+        rho0_min  - The minimum value of rho0.
+    """
     
     def __init__(self):
         self.variables       = ['T1', 'T1_z', 'ln_rho1', 'u', 'v', 'w', 'u_z', 'v_z', 'w_z', 'Bx', 'By', 'Bz', 'Ax', 'Ay', 'Az', 'phi']
-        self.necessary_terms = ['R', 'visc_scale', 'cond_scale', 'ohm_scale', 'coriolis_scale', 'ɣ', 'g', 'Cv', 'Cp', 'T0', 'T0_z', 'rho0', 'ln_rho0_z']
+        self.necessary_terms = ['R', 'μ', 'K', 'Ω0', 'φ', 'ohm_scale', 'ɣ', 'g', 'Cv', 'Cp', 'T0', 'T0_z', 'rho0', 'ln_rho0_z', 'c_scale', 'm_scale', 'e_scale', 'rho0_min']
         self._define_equations()
         self._define_BCs()
 
@@ -15,7 +38,6 @@ class FCMHDEquations():
         self._define_operators()
         self._define_physical_subs()
         self._define_output_subs()
-
 
     def _define_equations(self):
         self.equations  = OrderedDict()
@@ -26,14 +48,14 @@ class FCMHDEquations():
         self.equations['u_z_fof']       = "dz(u)  - u_z  = 0"
         self.equations['v_z_fof']       = "dz(v)  - v_z  = 0"
         self.equations['w_z_fof']       = "dz(w)  - w_z  = 0"
-        self.equations['Continuity']    = "T0*(dt(ln_rho1) + w*ln_rho0_z + DivU) = -T0*UdotGrad(ln_rho1, dz(ln_rho1))"
-        self.equations['Induction_x']   = "dt(Ax) + μ0*η*Jx + dx(phi) = v*Bz - w*By"
-        self.equations['Induction_y']   = "dt(Ay) + μ0*η*Jy + dy(phi) = w*Bx - u*Bz"
-        self.equations['Induction_z']   = "dt(Az) + μ0*η*Jz + dz(phi) = u*By - v*Bx"
-        self.equations['Momentum_x']    = "T0*(dt(u)  + R*(dx(T1) + T0*dx(ln_rho1))                - coriolis_scale*v - visc_u_L) = T0*(-UdotGrad(u, u_z) - R*T1*dx(ln_rho1) + (1/rho_full)*(Jy*Bz - Jz*By) + visc_u_R)"
-        self.equations['Momentum_y']    = "T0*(dt(v)  + R*(dy(T1) + T0*dy(ln_rho1))                + coriolis_scale*u - visc_v_L) = T0*(-UdotGrad(v, v_z) - R*T1*dy(ln_rho1) + (1/rho_full)*(Jz*Bx - Jx*Bz) + visc_v_R)"
-        self.equations['Momentum_z']    = "T0*(dt(w)  + R*(T1_z   + T0*dz(ln_rho1) + T1*ln_rho0_z)                    - visc_w_L) = T0*(-UdotGrad(w, w_z) - R*T1*dz(ln_rho1) + (1/rho_full)*(Jx*By - Jy*Bx) + visc_w_R)"
-        self.equations['Energy']        = "T0*(dt(T1) + w*T0_z + (ɣ-1)*T0*DivU - 2*cond_scale*(1/ɣ)*Lap(T1, T1_z)/rho0                ) = T0*(-UdotGrad(T1, T1_z) - (ɣ-1)*T1*DivU + cond_scale*(1/ɣ)*Lap(T1, T1_z)*(1/rho_full - 2/rho0) + visc_heat + ohm_heat)"
+        self.equations['Continuity']    = "c_scale*(dt(ln_rho1) + w*ln_rho0_z + DivU) = -c_scale*UdotGrad(ln_rho1, dz(ln_rho1))"
+        self.equations['Induction_x']   = "dt(Ax) + ohm_scale*Jx + dx(phi) = v*Bz - w*By"
+        self.equations['Induction_y']   = "dt(Ay) + ohm_scale*Jy + dy(phi) = w*Bx - u*Bz"
+        self.equations['Induction_z']   = "dt(Az) + ohm_scale*Jz + dz(phi) = u*By - v*Bx"
+        self.equations['Momentum_x']    = "m_scale*(dt(u)  + R*(dx(T1) + T0*dx(ln_rho1))                + Coriolis_x - visc_u_L) = m_scale*(-UdotGrad(u, u_z) - R*T1*dx(ln_rho1) + (1/rho_full)*(Jy*Bz - Jz*By) + visc_u_R)"
+        self.equations['Momentum_y']    = "m_scale*(dt(v)  + R*(dy(T1) + T0*dy(ln_rho1))                + Coriolis_y - visc_v_L) = m_scale*(-UdotGrad(v, v_z) - R*T1*dy(ln_rho1) + (1/rho_full)*(Jz*Bx - Jx*Bz) + visc_v_R)"
+        self.equations['Momentum_z']    = "m_scale*(dt(w)  + R*(T1_z   + T0*dz(ln_rho1) + T1*ln_rho0_z) + Coriolis_z - visc_w_L) = m_scale*(-UdotGrad(w, w_z) - R*T1*dz(ln_rho1) + (1/rho_full)*(Jx*By - Jy*Bx) + visc_w_R)"
+        self.equations['Energy']        = "e_scale*(dt(T1) + w*T0_z + (ɣ-1)*T0*DivU - 2*K*(1/ɣ)*Lap(T1, T1_z)/rho0_min     )     = e_scale*(-UdotGrad(T1, T1_z) - (ɣ-1)*T1*DivU + K*(1/ɣ)*Lap(T1, T1_z)*(1/rho_full - 2/rho0_min) + visc_heat + ohm_heat)"
         self.equations['Coulomb_gauge'] = "Div(Ax, Ay, dz(Az)) = 0"
 
     def _define_BCs(self):
@@ -99,18 +121,22 @@ class FCMHDEquations():
         self.subs["Sig_xz"] = "(dx(w) +  u_z )"
         self.subs["Sig_yz"] = "(dy(w) +  v_z )"
 
+        self.subs['Coriolis_x'] = '2*Ω0*(   w*sin(φ) - v*cos(φ))'
+        self.subs['Coriolis_y'] = '2*Ω0*(   u*cos(φ))'
+        self.subs['Coriolis_z'] = '2*Ω0*(-1*u*sin(φ))'
+
         self.subs['visc_u']   = "( Lap(u, u_z) + 1/3*dx(DivU) )"
         self.subs['visc_v']   = "( Lap(v, v_z) + 1/3*dy(DivU) )"
         self.subs['visc_w']   = "( Lap(w, w_z) + 1/3*Div(u_z, v_z, dz(w_z)) )"
 
-        self.subs['visc_u_L'] = 'visc_scale*visc_u*(1/rho0)'
-        self.subs['visc_v_L'] = 'visc_scale*visc_v*(1/rho0)'
-        self.subs['visc_w_L'] = 'visc_scale*visc_w*(1/rho0)'
-        self.subs['visc_u_R'] = 'visc_scale*visc_u*(1/rho_full - 1/rho0)'
-        self.subs['visc_v_R'] = 'visc_scale*visc_v*(1/rho_full - 1/rho0)'
-        self.subs['visc_w_R'] = 'visc_scale*visc_w*(1/rho_full - 1/rho0)'
+        self.subs['visc_u_L'] = 'μ*visc_u*(1/rho0)'
+        self.subs['visc_v_L'] = 'μ*visc_v*(1/rho0)'
+        self.subs['visc_w_L'] = 'μ*visc_w*(1/rho0)'
+        self.subs['visc_u_R'] = 'μ*visc_u*(1/rho_full - 1/rho0)'
+        self.subs['visc_v_R'] = 'μ*visc_v*(1/rho_full - 1/rho0)'
+        self.subs['visc_w_R'] = 'μ*visc_w*(1/rho_full - 1/rho0)'
 
-        self.subs['visc_heat']  = "visc_scale*(dx(u)*Sig_xx + dy(v)*Sig_yy + w_z*Sig_zz + Sig_xy**2 + Sig_xz**2 + Sig_yz**2)"
+        self.subs['visc_heat']  = "μ*(dx(u)*Sig_xx + dy(v)*Sig_yy + w_z*Sig_zz + Sig_xy**2 + Sig_xz**2 + Sig_yz**2)"
         self.subs['ohm_heat']   = 'ohm_scale*(Jx**2 + Jy**2 + Jz**2)'
 
 
@@ -138,8 +164,8 @@ class FCMHDEquations():
         self.subs['P_full']    = 'R*rho_full*T_full'
 
         #Diffusivities
-        self.subs['nu']        = 'visc_scale/rho_full'
-        self.subs['chi']       = 'visc_scale/(rho_full*Cp)'
+        self.subs['nu']        = 'μ/rho_full'
+        self.subs['chi']       = 'μ/(rho_full*Cp)'
         self.subs['Re_rms']    = 'vel_rms*Lz/nu'
         self.subs['Pe_rms']    = 'vel_rms*Lz/chi'
         self.subs['Ma_rms']    = 'vel_rms/sqrt(R*T_full)'
@@ -160,10 +186,10 @@ class FCMHDEquations():
         self.subs['enth_flux_z']  = '(w*(IE+P_full))'
         self.subs['KE_flux_z']    = '(w*KE)'
         self.subs['PE_flux_z']    = '(w*PE)'
-        self.subs['visc_flux_z']  = '(-visc_scale * (u*Sig_xz + v*Sig_yz + w*Sig_zz))'
-        self.subs['F_cond_z']     = '(-cond_scale * dz(T_full))'
-        self.subs['F_cond0_z']    = '(-cond_scale * dz(T0))'
-        self.subs['F_cond1_z']    = '(-cond_scale * dz(T1))'
+        self.subs['visc_flux_z']  = '(-μ * (u*Sig_xz + v*Sig_yz + w*Sig_zz))'
+        self.subs['F_cond_z']     = '(-K * dz(T_full))'
+        self.subs['F_cond0_z']    = '(-K * dz(T0))'
+        self.subs['F_cond1_z']    = '(-K * dz(T1))'
 
 
 
@@ -211,7 +237,7 @@ class FCEquations2D(FCEquations3D):
     def __init__(self):
         super(FCEquations2D, self).__init__()
         self.unneeded_variables  += ['v', 'v_z']
-        self.unnecessary_terms += ['coriolis_scale']
+        self.unnecessary_terms += ['Ω0', 'φ']
         for k in self.unneeded_variables:
             if k in self.variables: self.variables.remove(k)
 

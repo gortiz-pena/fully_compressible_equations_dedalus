@@ -43,7 +43,11 @@ class LinearAtmosphere():
 
         self.ds_dz_over_cp = domain.new_field()
         self.ds_dz_over_cp.set_scales(domain.dealias)
-        self.ds_dz_over_cp['g'] =  (1/self.ɣ)*self.T0_z['g']/self.T0['g'] - (1-self.ɣ)/self.ɣ * self.ln_rho0_z['g']
+        self.ds_dz_over_cp['g'] =  (1/self.ɣ)*self.T0_z['g']/self.T0['g'] - (self.ɣ-1)/self.ɣ * self.ln_rho0_z['g']
+
+        problem.substitutions['m_scale'] = problem.substitutions['c_scale'] = 'T0'
+        problem.substitutions['e_scale'] = '1'
+        problem.parameters['rho0_min']   = np.mean(self.rho0.interpolate(z=1)['g'])
 
     def set_parameters(self, Ra=1, Pr=1, aspect=2, Pm=None, Ta=None):
 
@@ -59,8 +63,6 @@ class LinearAtmosphere():
         self.problem.parameters['K']     = K 
         self.problem.parameters['μ']     = μ
         self.problem.substitutions['R']                 = '(ɣ-1)*Cv'
-        self.problem.substitutions['visc_scale']        = 'μ'
-        self.problem.substitutions['cond_scale']        = '(K)'
 
         logger.info("Ra = {:.3e}, Pr = {:2g}".format(Ra, Pr))
         logger.info("K = {:.3e}, η = {:2e}".format(K, μ))
@@ -72,9 +74,9 @@ class LinearAtmosphere():
             self.problem.substitutions['ohm_scale']         = 'μ0*η'
             logger.info("Pm = {:.3e}, μ = {:2e}".format(Pm, μ))
         if Ta is not None:
-            Ω0 = (μ / rho_m / 2 / d**2) * np.sqrt(Ta)
+            Ω0 = (μ / rho_m / 2 / self.d**2) * np.sqrt(Ta)
             self.problem.parameters['Ω0']    = Ω0 
-            self.problem.substitutions['coriolis_scale']    = '2*Ω0'
+            self.problem.substitutions['φ']  = '0'
             logger.info("Ta = {:.3e}, Ω0 = {:.3e}".format(Ta, Ω0))
 
 
