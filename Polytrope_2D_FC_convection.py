@@ -17,6 +17,7 @@ Options:
     --ny=<nx>                  Horizontal resolution [default: 64]
 
     --FT                       If flagged, use FT boundary conditions (default is TT)
+    --FF                       If flagged, use FF boundary conditions (default is TT)
 
     --mesh=<mesh>              Processor mesh if distributing 3D run in 2D 
     
@@ -127,6 +128,11 @@ bcs = ['temp_L', 'temp_R', 'stressfree', 'impenetrable']
 if args['--FT']:
     bcs.remove('temp_L')
     bcs.append('flux_L')
+if args['--FF']:
+    bcs.remove('temp_L')
+    bcs.remove('temp_R')
+    bcs.append('flux_L')
+    bcs.append('flux_R')
 for k, bc in equations.BCs.items():
     for bc_type in bcs:
         if bc_type in k:
