@@ -80,7 +80,7 @@ class LinearAtmosphere():
             logger.info("Ta = {:.3e}, Ω0 = {:.3e}".format(Ta, Ω0))
 
 
-        delta_S = np.abs(np.mean(self.ds_dz_over_cp.integrate()['g'])*self.Cp)
+        delta_S = np.abs(np.mean(self.ds_dz_over_cp.integrate('z')['g'])*self.Cp)
         self.t_buoy  = np.sqrt(self.g*self.Cp*self.d/delta_S) 
         self.t_diff  = np.sqrt(self.d/μ)
         return self.t_buoy, self.t_diff

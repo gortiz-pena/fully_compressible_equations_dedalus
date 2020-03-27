@@ -62,6 +62,14 @@ data_dir = args['--root_dir'] + '/' + sys.argv[0].split('.py')[0]
 
 
 data_dir += "_Ra{}_Pr{}_n_rho{}_eps{}_a{}".format(args['--Rayleigh'], args['--Prandtl'], args['--n_rho'], args['--epsilon'], args['--aspect'])
+
+if args['--FF']:
+    data_dir += '_FF'
+elif args['--FT']:
+    data_dir += '_FT'
+else:
+    data_dir += '_TT'
+
 if args['--label'] is not None:
     data_dir += "_{}".format(args['--label'])
 data_dir += '/'
@@ -165,7 +173,7 @@ if restart is None:
     T1 = solver.state['T1']
     T1_z = solver.state['T1_z']
     T1.set_scales(domain.dealias)
-    T1['g'] = 1e-4*epsilon*T0['g']*np.sin(np.pi*z_de/Lz)*noise['g']
+    T1['g'] = 1e-6*epsilon*T0['g']*np.sin(np.pi*z_de/Lz)*noise['g']
     T1.differentiate('z', out=T1_z)
 
     dt = None
@@ -185,9 +193,10 @@ else:                            solver.stop_sim_time = 1 + solver.sim_time
 solver.stop_wall_time = run_time_wall*3600.
 
 #TODO: Check max_dt, cfl, etc.
-max_dt    = 0.1*t_buoy
+max_dt    = 0.2*t_buoy
 if dt is None: dt = max_dt
-analysis_tasks = initialize_output(solver, domain, data_dir, mode=mode, magnetic=False, threeD=False)
+analysis_tasks = initialize_output(solver, domain, data_dir, mode=mode, magnetic=False, threeD=False,
+                                    output_dt = 0.2*t_buoy, output_vol_dt = 5*t_buoy)
 
 # CFL
 CFL = flow_tools.CFL(solver, initial_dt=dt, cadence=1, safety=cfl_safety,
