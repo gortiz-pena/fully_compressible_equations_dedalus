@@ -142,7 +142,7 @@ class FCMHDEquations():
         self.subs['visc_v_R']  = '(μ*visc_v/rho_full - visc_v_L)'
         self.subs['visc_w_R']  = '(μ*visc_w/rho_full - visc_w_L)'
 
-        self.subs['diff']      = '(K*ɣ)*Lap(T1, T1_z)'
+        self.subs['diff']      = '(K/Cv)*Lap(T1, T1_z)'
 
         self.subs['diff_L']    = 'diff*2/rho0_min'
         self.subs['diff_R']    = '(diff/rho_full - diff_L)'
@@ -198,9 +198,12 @@ class FCMHDEquations():
         self.subs['KE_flux_z']    = '(w*KE)'
         self.subs['PE_flux_z']    = '(w*PE)'
         self.subs['visc_flux_z']  = '(-μ * (u*Sig_xz + v*Sig_yz + w*Sig_zz))'
+        self.subs['conv_flux']    = '(enth_flux_z + KE_flux_z + PE_flux_z + visc_flux_z)'
         self.subs['F_cond_z']     = '(-K * dz(T_full))'
         self.subs['F_cond0_z']    = '(-K * dz(T0))'
         self.subs['F_cond1_z']    = '(-K * dz(T1))'
+        self.subs['F_cond_z_ad']  = '(K * g/Cp)'
+        self.subs['Nu']           = '(conv_flux + F_cond_z - F_cond_z_ad)/vol_avg(F_cond0_z - F_cond_z_ad)'
 
 
 

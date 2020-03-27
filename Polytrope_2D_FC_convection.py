@@ -12,9 +12,8 @@ Options:
     --gamma=<gamma>            Adiabatic index [default: 5/3]
     --aspect=<aspect>          Aspect ratio of problem [default: 4]
     --seed=<seed>              Random seed for initial noise [default: 42]
-    --nz=<nz>                  Vertical resolution [default: 32]
-    --nx=<nx>                  Horizontal resolution [default: 64]
-    --ny=<nx>                  Horizontal resolution [default: 64]
+    --nz=<nz>                  Vertical resolution [default: 64]
+    --nx=<nx>                  Horizontal resolution [default: 256]
 
     --FT                       If flagged, use FT boundary conditions (default is TT)
     --FF                       If flagged, use FF boundary conditions (default is TT)
@@ -31,7 +30,7 @@ Options:
 
     --label=<label>            Optional additional case name label
     --root_dir=<dir>           Root directory for output [default: ./]
-    --safety=<s>               CFL safety factor [default: 0.7]
+    --safety=<s>               CFL safety factor [default: 0.8]
     --RK222                    Use RK222 instead of RK443
 """
 import logging
@@ -97,7 +96,6 @@ if mesh is not None:
 
 ### 2. Setup Dedalus domain, problem, and substitutions/parameters
 nx = int(args['--nx'])
-ny = int(args['--ny'])
 nz = int(args['--nz'])
 aspect = float(args['--aspect'])
 
@@ -208,6 +206,8 @@ CFL.add_velocities(('u', 'w'))
 #TODO: define these properly, probably only need Nu, KE, log string
 flow = flow_tools.GlobalFlowProperty(solver, cadence=1)
 flow.add_property("Re_rms", name='Re')
+flow.add_property("Nu", name='Nu')
+flow.add_property("Ma_rms", name='Ma')
 flow.add_property("KE", name='KE')
 
 Hermitian_cadence = 100
@@ -238,7 +238,9 @@ try:
             log_string =  'Iteration: {:5d}, '.format(solver.iteration)
             log_string += 'Time: {:8.3e} ({:8.3e} buoy / {:8.3e} diff), dt: {:8.3e}, '.format(solver.sim_time, solver.sim_time/t_buoy, solver.sim_time/t_diff,  dt)
             log_string += 'Re: {:8.3e}/{:8.3e}, '.format(Re_avg, flow.max('Re'))
-            log_string += 'KE: {:8.3e}/{:8.3e}, '.format(flow.grid_average('KE'), flow.max('KE'))
+            log_string += 'Nu: {:8.3e}, '.format(flow.grid_average('Nu'))
+            log_string += 'Ma: {:8.3e}, '.format(flow.grid_average('Ma'))
+            log_string += 'KE: {:8.3e}, '.format(flow.grid_average('KE'))
             logger.info(log_string)
 except:
     raise
