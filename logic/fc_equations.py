@@ -48,14 +48,14 @@ class FCMHDEquations():
         self.equations['u_z_fof']       = "dz(u)  - u_z  = 0"
         self.equations['v_z_fof']       = "dz(v)  - v_z  = 0"
         self.equations['w_z_fof']       = "dz(w)  - w_z  = 0"
-        self.equations['Continuity']    = "c_scale*(dt(ln_rho1) + w*ln_rho0_z + DivU) = -c_scale*UdotGrad(ln_rho1, dz(ln_rho1))"
+        self.equations['Continuity']    = "c_scale*( dt(ln_rho1) + w*ln_rho0_z + DivU ) = c_scale*( -1*UdotGrad(ln_rho1, dz(ln_rho1)) )"
         self.equations['Induction_x']   = "dt(Ax) + ohm_scale*Jx + dx(phi) = v*Bz - w*By"
         self.equations['Induction_y']   = "dt(Ay) + ohm_scale*Jy + dy(phi) = w*Bx - u*Bz"
         self.equations['Induction_z']   = "dt(Az) + ohm_scale*Jz + dz(phi) = u*By - v*Bx"
-        self.equations['Momentum_x']    = "m_scale*(dt(u)  + R*(dx(T1) + T0*dx(ln_rho1))                + Coriolis_x - visc_u_L) = m_scale*(-UdotGrad(u, u_z) - R*T1*dx(ln_rho1) + (1/rho_full)*(Jy*Bz - Jz*By) + visc_u_R)"
-        self.equations['Momentum_y']    = "m_scale*(dt(v)  + R*(dy(T1) + T0*dy(ln_rho1))                + Coriolis_y - visc_v_L) = m_scale*(-UdotGrad(v, v_z) - R*T1*dy(ln_rho1) + (1/rho_full)*(Jz*Bx - Jx*Bz) + visc_v_R)"
+        self.equations['Momentum_x']    = "         dt(u)  + R*(dx(T1) + T0*dx(ln_rho1))                + Coriolis_x - visc_u_L =           -UdotGrad(u, u_z) - R*T1*dx(ln_rho1) + (1/rho_full)*(Jy*Bz - Jz*By) + visc_u_R"
+        self.equations['Momentum_y']    = "         dt(v)  + R*(dy(T1) + T0*dy(ln_rho1))                + Coriolis_y - visc_v_L =           -UdotGrad(v, v_z) - R*T1*dy(ln_rho1) + (1/rho_full)*(Jz*Bx - Jx*Bz) + visc_v_R"
         self.equations['Momentum_z']    = "m_scale*(dt(w)  + R*(T1_z   + T0*dz(ln_rho1) + T1*ln_rho0_z) + Coriolis_z - visc_w_L) = m_scale*(-UdotGrad(w, w_z) - R*T1*dz(ln_rho1) + (1/rho_full)*(Jx*By - Jy*Bx) + visc_w_R)"
-        self.equations['Energy']        = "e_scale*(dt(T1) + w*T0_z + (ɣ-1)*T0*DivU - 2*K*(1/ɣ)*Lap(T1, T1_z)/rho0_min     )     = e_scale*(-UdotGrad(T1, T1_z) - (ɣ-1)*T1*DivU + K*(1/ɣ)*Lap(T1, T1_z)*(1/rho_full - 2/rho0_min) + visc_heat + ohm_heat)"
+        self.equations['Energy']        = "e_scale*(dt(T1) + w*T0_z + (ɣ-1)*T0*DivU - diff_L )     = e_scale*(-UdotGrad(T1, T1_z) - (ɣ-1)*T1*DivU + diff_R + visc_heat + ohm_heat)"
         self.equations['Coulomb_gauge'] = "Div(Ax, Ay, dz(Az)) = 0"
 
     def _define_BCs(self):
@@ -105,15 +105,18 @@ class FCMHDEquations():
         self.subs['plane_std(A)']      = 'sqrt(plane_avg((A - plane_avg(A))**2))'
 
     def _define_physical_subs(self):
+        
+        # Thermo
         self.subs['ln_rho0']          = '(log(rho0))'
         self.subs['rho_full']         = '(rho0*exp(ln_rho1))'
         self.subs['T_full']           = '(T0 + T1)'
             
+        # Current
         self.subs['Jx'] = '(dy(Bz) - dz(By))'
         self.subs['Jy'] = '(dz(Bx) - dx(Bz))'
         self.subs['Jz'] = '(dx(By) - dy(Bx))'
 
-        # Stress Tensor and other hard terms
+        # Stress Tensor
         self.subs["Sig_xx"] = "(2*dx(u) - 2/3*DivU)"
         self.subs["Sig_yy"] = "(2*dy(v) - 2/3*DivU)"
         self.subs["Sig_zz"] = "(2*w_z   - 2/3*DivU)"
@@ -121,23 +124,31 @@ class FCMHDEquations():
         self.subs["Sig_xz"] = "(dx(w) +  u_z )"
         self.subs["Sig_yz"] = "(dy(w) +  v_z )"
 
-        self.subs['Coriolis_x'] = '2*Ω0*(   w*sin(φ) - v*cos(φ))'
-        self.subs['Coriolis_y'] = '2*Ω0*(   u*cos(φ))'
-        self.subs['Coriolis_z'] = '2*Ω0*(-1*u*sin(φ))'
+        # Coriolis
+        self.subs['Coriolis_x'] = '2*Ω0*( w*sin(φ) - v*cos(φ) )'
+        self.subs['Coriolis_y'] = '2*Ω0*( u*cos(φ))'
+        self.subs['Coriolis_z'] = '2*Ω0*(         -1*u*sin(φ) )'
 
-        self.subs['visc_u']   = "( Lap(u, u_z) + 1/3*dx(DivU) )"
-        self.subs['visc_v']   = "( Lap(v, v_z) + 1/3*dy(DivU) )"
-        self.subs['visc_w']   = "( Lap(w, w_z) + 1/3*Div(u_z, v_z, dz(w_z)) )"
+        # LHS diffusive terms should always be larger in magnitude than RHS "true" component.
+        # This makes LHS diffusive and RHS antidiffusive, which is stable for RHS explicit methods.
+        self.subs['visc_u']    = "( Lap(u, u_z) + 1/3*dx(DivU) )"
+        self.subs['visc_v']    = "( Lap(v, v_z) + 1/3*dy(DivU) )"
+        self.subs['visc_w']    = "( Lap(w, w_z) + 1/3*Div(u_z, v_z, dz(w_z)) )"
 
-        self.subs['visc_u_L'] = 'μ*visc_u*(1/rho0)'
-        self.subs['visc_v_L'] = 'μ*visc_v*(1/rho0)'
-        self.subs['visc_w_L'] = 'μ*visc_w*(1/rho0)'
-        self.subs['visc_u_R'] = 'μ*visc_u*(1/rho_full - 1/rho0)'
-        self.subs['visc_v_R'] = 'μ*visc_v*(1/rho_full - 1/rho0)'
-        self.subs['visc_w_R'] = 'μ*visc_w*(1/rho_full - 1/rho0)'
+        self.subs['visc_u_L']  = 'μ*visc_u*(2/rho0_min)'
+        self.subs['visc_v_L']  = 'μ*visc_v*(2/rho0_min)'
+        self.subs['visc_w_L']  = 'μ*visc_w*(2/rho0_min)'
+        self.subs['visc_u_R']  = '(μ*visc_u/rho_full - visc_u_L)'
+        self.subs['visc_v_R']  = '(μ*visc_v/rho_full - visc_v_L)'
+        self.subs['visc_w_R']  = '(μ*visc_w/rho_full - visc_w_L)'
 
-        self.subs['visc_heat']  = "μ*(dx(u)*Sig_xx + dy(v)*Sig_yy + w_z*Sig_zz + Sig_xy**2 + Sig_xz**2 + Sig_yz**2)"
-        self.subs['ohm_heat']   = 'ohm_scale*(Jx**2 + Jy**2 + Jz**2)'
+        self.subs['diff']      = '(K*ɣ)*Lap(T1, T1_z)'
+
+        self.subs['diff_L']    = 'diff*2/rho0_min'
+        self.subs['diff_R']    = '(diff/rho_full - diff_L)'
+
+        self.subs['visc_heat'] = "(μ/rho_full/Cv)*(dx(u)*Sig_xx + dy(v)*Sig_yy + w_z*Sig_zz + Sig_xy**2 + Sig_xz**2 + Sig_yz**2)"
+        self.subs['ohm_heat']  = 'ohm_scale*(Jx**2 + Jy**2 + Jz**2)'
 
 
     def _define_output_subs(self):

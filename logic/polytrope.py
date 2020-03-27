@@ -66,8 +66,8 @@ class Polytrope():
         """ Given the Rayleigh and Taylor numbers are defined at the top of the domain """
         self.problem.parameters['Lx'] = self.problem.parameters['Ly'] = aspect*self.Lz
 
-        
-        delta_s_over_cp = np.mean(self.ds_dz_over_cp.integrate()['g'])
+       
+        delta_s_over_cp = np.mean(self.ds_dz_over_cp.integrate('z')['g'])
         K  = self.Cp*np.sqrt(self.g*self.Lz**3*np.abs(delta_s_over_cp) / Ra / Pr)
         μ  = K * Pr / self.Cp
 
