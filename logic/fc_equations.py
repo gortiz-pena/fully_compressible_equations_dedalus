@@ -26,12 +26,12 @@ class FCMHDEquations():
         m_scale   - A scaling factor on the momentum equation (if unsure, set to 1)
         e_scale   - A scaling factor on the energy equation (if unsure, set to 1)
         rho0_min  - The minimum value of rho0.
-        phi       - The gravitational potential
+        grav_phi       - The gravitational potential
     """
     
     def __init__(self):
         self.variables       = ['T1', 'T1_z', 'ln_rho1', 'u', 'v', 'w', 'u_z', 'v_z', 'w_z', 'Bx', 'By', 'Bz', 'Ax', 'Ay', 'Az', 'phi']
-        self.necessary_terms = ['R', 'μ', 'K', 'Ω0', 'φ', 'ohm_scale', 'ɣ', 'g', 'Cv', 'Cp', 'T0', 'T0_z', 'rho0', 'ln_rho0_z', 'c_scale', 'm_scale', 'e_scale', 'rho0_min', 'phi']
+        self.necessary_terms = ['R', 'μ', 'K', 'Ω0', 'φ', 'ohm_scale', 'ɣ', 'g', 'Cv', 'Cp', 'T0', 'T0_z', 'rho0', 'ln_rho0_z', 'c_scale', 'm_scale', 'e_scale', 'rho0_min', 'grav_phi']
         self._define_equations()
         self._define_BCs()
 
@@ -180,7 +180,7 @@ class FCMHDEquations():
 
         #Diffusivities
         self.subs['nu']        = 'μ/rho_full'
-        self.subs['chi']       = 'μ/(rho_full*Cp)'
+        self.subs['chi']       = 'K/(rho_full*Cp)'
         self.subs['Re_rms']    = 'vel_rms*Lz/nu'
         self.subs['Pe_rms']    = 'vel_rms*Lz/chi'
         self.subs['Ma_rms']    = 'vel_rms/sqrt(R*T_full)'
@@ -188,9 +188,9 @@ class FCMHDEquations():
         #Energies
         self.subs['KE']        = 'rho_full*vel_rms**2/2'
         self.subs['IE']        = 'rho_full*Cv*T_full'
-        self.subs['PE']        = 'rho_full*phi'
+        self.subs['PE']        = 'rho_full*grav_phi'
         self.subs['BE']        = 'B_rms/2'
-        self.subs['PE_fluc']   = '(PE - rho0*phi)'
+        self.subs['PE_fluc']   = '(PE - rho0*grav_phi)'
         self.subs['IE_fluc']   = '(IE - rho0*Cv*T0)'
         self.subs['TE']        = '(KE + IE + PE + BE)'
         self.subs['TE_fluc']   = '(KE + BE + IE_fluc + PE_fluc)'

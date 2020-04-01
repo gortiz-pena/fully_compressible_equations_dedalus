@@ -59,7 +59,7 @@ class Polytrope():
         self.problem.substitutions['m_scale'] = self.problem.substitutions['c_scale'] = 'T0'
         self.problem.substitutions['e_scale'] = '1'
         self.problem.parameters['rho0_min']   = np.mean(self.rho0.interpolate(z=self.Lz)['g'])
-        self.problem.substitutions['phi'] = '(-g*(1 + Lz - z))'
+        self.problem.substitutions['grav_phi'] = '(-g*(1 + Lz - z))'
 
         self.problem.parameters['Lz'] = self.Lz
 
