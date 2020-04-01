@@ -17,6 +17,9 @@ Options:
 
     --FT                       If flagged, use FT boundary conditions (default is TT)
     --FF                       If flagged, use FF boundary conditions (default is TT)
+    --SS                       If flagged, use SS boundary conditions (default is TT)
+
+    --NS                       If flagged, use no-slip BCs (default is stress-free, SF)
 
     --mesh=<mesh>              Processor mesh if distributing 3D run in 2D 
     
@@ -66,8 +69,15 @@ if args['--FF']:
     data_dir += '_FF'
 elif args['--FT']:
     data_dir += '_FT'
+elif args['--SS']:
+    data_dir += '_SS'
 else:
     data_dir += '_TT'
+
+if args['--NS']:
+    data_dir += '_NS'
+else:
+    data_dir += '_SF'
 
 if args['--label'] is not None:
     data_dir += "_{}".format(args['--label'])
@@ -134,11 +144,21 @@ bcs = ['temp_L', 'temp_R', 'stressfree', 'impenetrable']
 if args['--FT']:
     bcs.remove('temp_L')
     bcs.append('flux_L')
-if args['--FF']:
+elif args['--FF']:
     bcs.remove('temp_L')
     bcs.remove('temp_R')
     bcs.append('flux_L')
     bcs.append('flux_R')
+elif args['--SS']:
+    bcs.remove('temp_L')
+    bcs.remove('temp_R')
+    bcs.append('entropy_L')
+    bcs.append('entropy_R')
+
+if args['--NS']:
+    bcs.remove('stressfree')
+    bcs.append('noslip')
+
 for k, bc in equations.BCs.items():
     for bc_type in bcs:
         if bc_type in k:
@@ -194,7 +214,7 @@ solver.stop_wall_time = run_time_wall*3600.
 max_dt    = 0.2*t_buoy
 if dt is None: dt = max_dt
 analysis_tasks = initialize_output(solver, domain, data_dir, mode=mode, magnetic=False, threeD=False,
-                                    output_dt = 0.2*t_buoy, output_vol_dt = 5*t_buoy)
+                                    output_dt = 0.2*t_buoy)
 
 # CFL
 CFL = flow_tools.CFL(solver, initial_dt=dt, cadence=1, safety=cfl_safety,

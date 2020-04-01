@@ -4,7 +4,7 @@ logger = logging.getLogger(__name__)
 from collections import OrderedDict
 
 def initialize_output(solver, domain, data_dir,
-                      max_writes=10, max_vol_writes=2, output_dt=1, output_vol_dt=20,
+                      max_writes=10, max_vol_writes=2, output_dt=1, slice_dt_factor=5, vol_dt_factor=25,
                       mode="overwrite", volumes_output=True, coeff_output=False, magnetic=True, threeD=True):
     """
     Sets up Dedalus output tasks for a Boussinesq convection run.
@@ -23,8 +23,6 @@ def initialize_output(solver, domain, data_dir,
         Maximum number os imulations output writes per 3D volume file
     output_dt       : float, optional
         Simulation time between output writes
-    output_vol_dt   : float, optional
-        Simulation time between 3D volume output writes.
     mode            : string, optional
         Write mode for dedalus, "overwrite" or "append"
     volumes_output  : bool, optional
@@ -36,12 +34,12 @@ def initialize_output(solver, domain, data_dir,
     analysis_tasks = analysis_tasks = OrderedDict()
 
     analysis_profile = solver.evaluator.add_file_handler(data_dir+"profiles", max_writes=max_writes, parallel=False, sim_dt=output_dt, mode=mode)
-    analysis_scalar = solver.evaluator.add_file_handler(data_dir+"scalar", max_writes=max_writes, parallel=False, sim_dt=output_dt, mode=mode)
+    analysis_scalar = solver.evaluator.add_file_handler(data_dir+"scalar", max_writes=max_writes, parallel=False,    sim_dt=output_dt, mode=mode)
 
-    basic_fields  = ['u_rms', 'v_rms', 'w_rms', 'vel_rms', 'enstrophy', 'T1', 'T1_z', 'T_full', 'ln_rho1', 'rho_full', 'Bx', 'By', 'Bz', 's_over_cp']
+    basic_fields  = ['u_rms', 'v_rms', 'w_rms', 'vel_rms', 'enstrophy', 'T1', 'T1_z', 'T_full', 'ln_rho1', 'rho_full', 'Bx', 'By', 'Bz', 's_over_cp', 's_over_cp_z']
     fluid_numbers = ['Re_rms', 'Pe_rms', 'Ma_rms']
     energies      = ['KE', 'PE', 'IE', 'BE', 'TE', 'PE_fluc', 'IE_fluc', 'TE_fluc']
-    fluxes        = ['ohm_flux_z', 'poynt_flux_z', 'enth_flux_z', 'KE_flux_z', 'PE_flux_z', 'visc_flux_z', 'F_cond_z', 'F_cond0_z', 'F_cond1_z']
+    fluxes        = ['ohm_flux_z', 'poynt_flux_z', 'enth_flux_z', 'KE_flux_z', 'PE_flux_z', 'visc_flux_z', 'F_cond_z', 'F_cond0_z', 'F_cond1_z', 'Nu']
     out_fields = basic_fields + fluid_numbers + energies + fluxes
     if not magnetic:
         bad_ks = ['Bx', 'By', 'Bz', 'BE', 'ohm_flux_z', 'poynt_flux_z']
@@ -55,6 +53,8 @@ def initialize_output(solver, domain, data_dir,
         analysis_scalar.add_task("vol_avg({})".format(field), name=field)
    
     analysis_profile.add_task("plane_avg(sqrt(T1**2))", name="T1_rms")
+    analysis_profile.add_task("plane_avg(visc_w_L + visc_w_R)", name="visc_w")
+    analysis_profile.add_task("plane_avg(UdotGrad(w, w_z))", name="UdotGradw")
     analysis_scalar.add_task( "vol_avg(sqrt(T1**2))", name="T1_rms")
     analysis_scalar.add_task( "integ(  rho_full - rho0)", name="M1")
 
@@ -62,7 +62,7 @@ def initialize_output(solver, domain, data_dir,
     analysis_tasks['scalar'] = analysis_scalar
 
     ix, iy, iz = domain.bases[0].interval, domain.bases[1].interval, domain.bases[-1].interval
-    slices = solver.evaluator.add_file_handler(data_dir+'slices', sim_dt=output_dt, max_writes=max_writes, mode=mode)
+    slices = solver.evaluator.add_file_handler(data_dir+'slices', sim_dt=slice_dt_factor*output_dt, max_writes=max_writes, mode=mode)
     slice_fields = ['s_over_cp', 'enstrophy', 'u', 'w', 'T1', 'Vort_y', 'Vort_x', 'Bx', 'By', 'Bz']
     if not magnetic:
         bad_ks = ['Bx', 'By', 'Bz']
@@ -80,7 +80,7 @@ def initialize_output(solver, domain, data_dir,
     analysis_tasks['slices'] = slices
 
     if volumes_output and threeD:
-        analysis_volume = solver.evaluator.add_file_handler(data_dir+'volumes', sim_dt=output_vol_dt, max_writes=max_vol_writes, mode=mode)
+        analysis_volume = solver.evaluator.add_file_handler(data_dir+'volumes', sim_dt=vol_dt_factor*output_dt, max_writes=max_vol_writes, mode=mode)
         analysis_volume.add_task("T_full")
         if magnetic:
             analysis_volume.add_task("B_perp")

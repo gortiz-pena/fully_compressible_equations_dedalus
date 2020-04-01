@@ -52,10 +52,11 @@ class AveragedProfile:
     basis : string
         The dedalus basis name that the profile spans
     """
-    def __init__(self, field, avg_writes, basis='z'):
+    def __init__(self, field, avg_writes, basis='z', log=False):
         self.field = field
         self.basis = basis
         self.avg_writes = avg_writes 
+        self.log = log
 
 class ProfilePlotter(SingleFiletypePlotter):
     """
@@ -143,9 +144,12 @@ class ProfilePlotter(SingleFiletypePlotter):
             self.dist_comm.Allreduce(min_writenum, glob_min_writenum, op=MPI.MIN)
 
             profiles = OrderedDict()
-            times = np.zeros(glob_writes[0])
-            times_buff = np.zeros(glob_writes[0])
+            writes = np.zeros(glob_writes[0])
+            writes_buff = np.zeros(glob_writes[0])
             for i, t in enumerate(tasks):
+                if self.reader.comm.rank == 0:
+                    print('Communicating info for task {}...'.format(t))
+                    stdout.flush()
                 for j in range(len(my_tsks)):         
                     field = my_tsks[j][t].squeeze()
                     n_prof = field.shape[-1]
@@ -155,12 +159,12 @@ class ProfilePlotter(SingleFiletypePlotter):
                     t_indices = my_writes[j]-glob_min_writenum[0]
                     profiles[t][t_indices,:] = field
                     if i == 0:
-                        times[t_indices] = my_times[j]
+                        writes[t_indices] = my_writes[j]
                 self.dist_comm.Allreduce(profiles[t], buff, op=MPI.SUM)
-                self.dist_comm.Allreduce(times, times_buff, op=MPI.SUM)
                 profiles[t][:,:] = buff[:,:]
-                times[:] = times_buff
-            return profiles, bs, times
+            self.dist_comm.Allreduce(writes, writes_buff, op=MPI.SUM)
+            writes[:] = writes_buff
+            return profiles, bs, writes
                 
     def plot_colormeshes(self, dpi=600, **kwargs):
         """
@@ -179,7 +183,7 @@ class ProfilePlotter(SingleFiletypePlotter):
                 tasks.append(cm.field)
             if cm.basis not in bases:
                 bases.append(cm.basis)
-        profiles, bs, times = self.get_profiles(tasks, bases)
+        profiles, bs, writes = self.get_profiles(tasks, bases)
 
         if self.reader.comm.rank != 0: return
         grid = ColorbarPlotGrid(1,1, **kwargs)
@@ -187,7 +191,7 @@ class ProfilePlotter(SingleFiletypePlotter):
         cax = grid.cbar_axes['ax_0-0']
         for cm in self.colormeshes:
             basis = bs[cm.basis]
-            yy, xx = np.meshgrid(basis, times)
+            yy, xx = np.meshgrid(basis, writes)
             k = cm.field
             data = profiles[k]
 
@@ -215,6 +219,9 @@ class ProfilePlotter(SingleFiletypePlotter):
             cb.set_ticklabels(('{:.2e}'.format(vmin), '{:.2e}'.format(vmax)))
             cax.xaxis.set_ticks_position('bottom')
             cax.text(0.5, 0.25, '{:s}'.format(k), transform=cax.transAxes)
+
+            ax.set_xlabel('write number')
+            ax.set_ylabel(bases[0])
 
             #Save
             grid.fig.savefig('{:s}/{:s}_{:s}.png'.format(self.out_dir, self.fig_name, k), dpi=dpi, bbox_inches='tight')
@@ -250,6 +257,7 @@ class ProfilePlotter(SingleFiletypePlotter):
             n_writes = np.int(np.ceil(len(times)/prof.avg_writes))
             basis = bs[prof.basis]
             k = prof.field
+            log = prof.log
             data = profiles[k]
             averaged_profiles[prof.field] = []
             averaged_times[prof.field] = []
@@ -269,9 +277,15 @@ class ProfilePlotter(SingleFiletypePlotter):
                     stdout.flush()
 
                 ax.grid(which='major')
-                plot = ax.plot(basis, profile, lw=2)
-                ax.set_ylabel(k)
+                if log:
+                    plot = ax.plot(basis, np.log10(np.abs(profile)), lw=2)
+                    ax.set_yscale('log')
+                    ax.set_ylabel(k)
+                else:
+                    plot = ax.plot(basis, profile, lw=2)
+                    ax.set_ylabel(k)
                 ax.set_xlabel(prof.basis)
+                ax.set_ylabel(k)
                 ax.set_title('t = {:.4e}-{:.4e}'.format(t1, t2))
                 ax.set_xlim(basis.min(), basis.max())
                 ax.set_ylim(profile.min(), profile.max())

@@ -55,6 +55,10 @@ class FileReader:
         self.sub_dirs   = sub_dirs
         self.file_lists = OrderedDict()
         self.comm       = comm
+        if comm.rank == 0:
+           print('reading files from {}'.format(run_dir))
+           import sys
+           sys.stdout.flush()
 
         for d, n in zip(sub_dirs, num_files):
             files = []

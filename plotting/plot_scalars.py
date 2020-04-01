@@ -23,17 +23,22 @@ n_files     = args['--n_files']
 if n_files is not None: n_files = int(n_files)
 
 
-# Nu vs time
+# Ma vs time
 fig1 = ScalarFigure(1, 1, col_in=6, fig_name='ma_trace')
 fig1.add_field(0, 'Ma_rms')
+
+# Nu vs time
+figNu = ScalarFigure(1, 1, col_in=6, fig_name='nu_trace')
+figNu.add_field(0, 'Nu')
+
 
 # Re vs. time
 fig2 = ScalarFigure(1, 1, col_in=6, fig_name='pe_trace')
 fig2.add_field(0, 'Pe_rms')
 
 # dT 
-fig3 = ScalarFigure(1, 1, col_in=6, fig_name='s_over_cp')
-fig3.add_field(0, 's_over_cp')
+fig3 = ScalarFigure(1, 1, col_in=6, fig_name='s_over_cp_z')
+fig3.add_field(0, 's_over_cp_z')
 
 # Energies
 fig4 = ScalarFigure(5, 1, col_in=8, row_in=2.5, fig_name='energies')
@@ -48,7 +53,7 @@ fig4.add_field(4, 'TE_fluc')
 
 # Load in figures and make plots
 plotter = ScalarPlotter(root_dir, file_dir='scalar', fig_name=fig_name, start_file=start_file, n_files=n_files)
-figs = [fig1, fig2, fig3, fig4]
+figs = [fig1, fig2, fig3, fig4, figNu]
 plotter.load_figures(figs)
 plotter.plot_figures(dpi=int(args['--dpi']))
 plotter.plot_convergence_figures(dpi=int(args['--dpi']))

@@ -42,7 +42,7 @@ class Colormesh:
         If True, profile is positive definite and colormap should span from max/min to zero.
     """
 
-    def __init__(self, field, x_basis='x', y_basis='z', remove_mean=False, remove_x_mean=False, remove_y_mean=False, cmap='RdBu_r', pos_def=False):
+    def __init__(self, field, x_basis='x', y_basis='z', remove_mean=False, remove_x_mean=False, remove_y_mean=False, cmap='RdBu_r', pos_def=False, log=False):
         self.field = field
         self.x_basis = x_basis
         self.y_basis = y_basis
@@ -52,6 +52,7 @@ class Colormesh:
         self.cmap = cmap
         self.pos_def = pos_def
         self.xx, self.yy = None, None
+        self.log = log
 
 class SlicePlotter(SingleFiletypePlotter):
     """
@@ -145,12 +146,16 @@ class SlicePlotter(SingleFiletypePlotter):
                         elif self.colormeshes[k].remove_y_mean:
                             field -= np.mean(field, axis=1)
 
+                        if self.colormeshes[k].log: 
+                            field = np.log10(np.abs(field))
 
                         vals = np.sort(field.flatten())
                         if self.colormeshes[k].pos_def:
                             vals = np.sort(vals)
                             if np.mean(vals) < 0:
                                 vmin, vmax = vals[int(0.002*len(vals))], 0
+                            elif self.colormeshes[k].log:
+                                vmin, vmed, vmax = vals[int(0.002*len(vals))], vals[int(0.5*len(vals))], vals[int(0.998*len(vals))]
                             else:
                                 vmin, vmax = 0, vals[int(0.998*len(vals))]
                         else:
@@ -164,7 +169,10 @@ class SlicePlotter(SingleFiletypePlotter):
                         cb.set_ticks((vmin, vmax))
                         cb.set_ticklabels(('{:.2e}'.format(vmin), '{:.2e}'.format(vmax)))
                         caxs[k].xaxis.set_ticks_position('bottom')
-                        caxs[k].text(0.5, 0.25, '{:s}'.format(tasks[k]), transform=caxs[k].transAxes)
+                        cmap_label = '{:s}'.format(tasks[k])
+                        if self.colormeshes[k].log: cmap_label = 'log10({:s})'.format(cmap_label)
+                        caxs[k].text(0.5, 0.25, cmap_label, transform=caxs[k].transAxes)
+#                        caxs[k].text(0.5, 0.25, '{:s}'.format(tasks[k]), transform=caxs[k].transAxes)
 
                     plt.suptitle('t = {:.4e}'.format(times[j]))
                     self.grid.fig.savefig('{:s}/{:s}_{:06d}.png'.format(self.out_dir, self.fig_name, n+start_fig-1), dpi=dpi, bbox_inches='tight')
@@ -268,6 +276,8 @@ class MultiRunSlicePlotter():
                             elif cm.remove_y_mean:
                                 field -= np.mean(field, axis=1)
 
+                            if cm.log: field = np.log10(field)
+
                             vals = np.sort(field.flatten())
                             if cm.pos_def:
                                 vals = np.sort(vals)
@@ -288,7 +298,10 @@ class MultiRunSlicePlotter():
                             cb.set_ticks((vmin, vmax))
                             cb.set_ticklabels(('{:.2e}'.format(vmin), '{:.2e}'.format(vmax)))
                             caxs[index].xaxis.set_ticks_position('bottom')
-                            caxs[index].text(0.5, 0.25, '{:s}'.format(cm.field), transform=caxs[index].transAxes)
+
+                            cmap_label = '{:s}'.format(cm.field)
+                            if cm.log: cmap_label = 'log10({:s})'.format(cmap_label)
+                            caxs[index].text(0.5, 0.25, cmap_label, transform=caxs[index].transAxes)
 
                     plt.suptitle('t = {:.4e}'.format(times[0][j]))
                     self.grid.fig.savefig('{:s}/{:s}_{:06d}.png'.format(self.plotters[0].out_dir, self.plotters[0].fig_name, n+start_fig-1), dpi=dpi, bbox_inches='tight')

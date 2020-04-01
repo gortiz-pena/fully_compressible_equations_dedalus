@@ -10,7 +10,7 @@ Options:
     --start_file=<file_start_num>       Number of Dedalus output file to start plotting at [default: 1]
     --n_files=<num_files>               Number of files to plot
     --dpi=<dpi>                         Image pixel density [default: 200]
-    --avg_writes=<n_writes>             Number of output writes to average over [default: 200]
+    --avg_writes=<n_writes>             Number of output writes to average over [default: 1000]
 
     --col_inch=<in>                     Number of inches / column [default: 6]
     --row_inch=<in>                     Number of inches / row [default: 3]
@@ -41,10 +41,18 @@ fig_name   = args['--fig_name']
 plotter = ProfilePlotter(root_dir, file_dir='profiles', fig_name=fig_name, start_file=start_file, n_files=n_files)
 
 if int(args['--fig_type']) == 1:
-    plotter.add_profile('T', avg_writes)
-    plotter.add_profile('enth_flux', avg_writes)
-    plotter.add_profile('kappa_flux', avg_writes)
-    plotter.add_profile('tot_flux', avg_writes)
+    plotter.add_profile('T1', avg_writes)
+    plotter.add_profile('ln_rho1', avg_writes)
+    plotter.add_profile('s_over_cp', avg_writes)
+    plotter.add_profile('s_over_cp_z', avg_writes)
+    plotter.add_profile('enth_flux_z', avg_writes)
+    plotter.add_profile('KE_flux_z', avg_writes)
+    plotter.add_profile('PE_flux_z', avg_writes)
+    plotter.add_profile('visc_flux_z', avg_writes)
+    plotter.add_profile('F_cond_z', avg_writes)
+    plotter.add_profile('F_cond1_z', avg_writes)
+    plotter.add_profile('visc_w', avg_writes)
+    plotter.add_profile('UdotGradw', avg_writes)
 
 plotter_kwargs = { 'col_in' : int(args['--col_inch']), 'row_in' : int(args['--row_inch']) }
 plotter.plot_avg_profiles(dpi=int(args['--dpi']), **plotter_kwargs)

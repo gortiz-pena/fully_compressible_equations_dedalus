@@ -86,6 +86,8 @@ class FCMHDEquations():
         self.BCs['temp_R']         = ("right(T1) = 0",   "True")
         self.BCs['flux_L']         = (" left(T1_z) = 0", "True")
         self.BCs['flux_R']         = ("right(T1_z) = 0", "True")
+        self.BCs['entropy_L']      = (" left((ɣ-1)*T0*ln_rho1 - T1) =  left(T0*log(1 + T1/T0) - T1)", "True")
+        self.BCs['entropy_R']      = ("right((ɣ-1)*T0*ln_rho1 - T1) = right(T0*log(1 + T1/T0) - T1)", "True")
 
     def define_subs(self, problem):
         for k in self.necessary_terms:
@@ -171,8 +173,9 @@ class FCMHDEquations():
         self.subs['B_perp'] = 'sqrt(Bx**2 + By**2)'
 
         #thermo
-        self.subs['s_over_cp'] = '((1/ɣ)*log(T_full) - ((ɣ-1)/ɣ)*log(rho_full))'
-        self.subs['P_full']    = 'R*rho_full*T_full'
+        self.subs['s_over_cp']   = '((1/ɣ)*log(T_full) - ((ɣ-1)/ɣ)*(ln_rho0 + ln_rho1))'
+        self.subs['s_over_cp_z'] = '((1/ɣ)*(dz(T_full)/T_full) - ((ɣ-1)/ɣ)*(ln_rho0_z + dz(ln_rho1)))'
+        self.subs['P_full']      = 'R*rho_full*T_full'
 
         #Diffusivities
         self.subs['nu']        = 'μ/rho_full'
@@ -203,7 +206,7 @@ class FCMHDEquations():
         self.subs['F_cond0_z']    = '(-K * dz(T0))'
         self.subs['F_cond1_z']    = '(-K * dz(T1))'
         self.subs['F_cond_z_ad']  = '(K * g/Cp)'
-        self.subs['Nu']           = '(conv_flux + F_cond_z - F_cond_z_ad)/vol_avg(F_cond0_z - F_cond_z_ad)'
+        self.subs['Nu']           = '(conv_flux + F_cond_z - F_cond_z_ad)/vol_avg(F_cond_z - F_cond_z_ad)'
 
 
 
