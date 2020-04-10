@@ -131,9 +131,7 @@ def structure_bvp(atmo_class, atmo_args, atmo_kwargs, profiles, scalars):
     domain  = de.Domain([z_basis,], grid_dtype=np.float64, comm=MPI.COMM_SELF)
     problem = de.NLBVP(domain, variables = ['dS', 'S', 'ln_rho1', 'M1'])
     atmosphere.build_atmosphere(domain, problem)
-    dS_TT *= atmosphere.Cp
-
-
+    dS_TT *= atmosphere.Cp #Turn it into dS rather than dS/Cp units.
     z = domain.grid(0)
 
     #Solve out for Temp profile
@@ -143,11 +141,11 @@ def structure_bvp(atmo_class, atmo_args, atmo_kwargs, profiles, scalars):
     UdotGradw = domain.new_field()
     grad_ad = -(atmosphere.g/atmosphere.Cp)
 
-    T_TT['g'] = atmosphere.T0['g'] + T1_TT
-    T_ad = 1 + grad_ad*(z - Lz)
-    dT_ad_TT = np.mean(T_TT.interpolate(z=Lz)['g'] - T_TT.interpolate(z=Lz)['g']) - np.abs(grad_ad*Lz)
-    dT_ad_FT = dT_ad_TT / Nu
-    T1_FT['g'] =  dT_ad_FT*((T_TT['g'] - T_ad)/dT_ad_TT) + T_ad - atmosphere.T0['g']
+    T_TT['g']  = atmosphere.T0['g'] + T1_TT
+    T_ad       = 1 + grad_ad*(z - Lz)
+    dT_ad_TT   = np.mean(T_TT.interpolate(z=Lz)['g'] - T_TT.interpolate(z=Lz)['g']) - np.abs(grad_ad*Lz)
+    dT_ad_FT   = dT_ad_TT / Nu
+    T1_FT['g'] = dT_ad_FT*((T_TT['g'] - T_ad)/dT_ad_TT) + T_ad - atmosphere.T0['g']
 
     #Get dS0
     S0['g'] = atmosphere.Cp*((1/atmosphere.ɣ)*np.log(atmosphere.T0['g']) - ((atmosphere.ɣ-1)/atmosphere.ɣ)*np.log(atmosphere.rho0['g']))
@@ -222,7 +220,7 @@ def tt_to_ft_preliminaries(atmosphere, atmo_args, atmo_kwargs, path, time):
 
     return checkpoint_TT, T1_FT, ln_rho1_FT, dS_factor, dT_ad_factor, FT_Ra_factor
 
-def tt_to_ft(solver, checkpoint, checkpoint_TT, T1_FT, ln_rho1_FT, dS_factor, dT_ad_factor):
+def tt_to_ft(solver, checkpoint, atmosphere, checkpoint_TT, T1_FT, ln_rho1_FT, dS_factor, dT_ad_factor):
     """
     Starts an FT simulation from an equilibrated TT simulation.
 
@@ -232,6 +230,8 @@ def tt_to_ft(solver, checkpoint, checkpoint_TT, T1_FT, ln_rho1_FT, dS_factor, dT
             The solver for the FT system
         checkpoint : A Checkpoint object 
             A checkpoint object for loading states for the FT system
+        atmosphere : An atmosphere class object (e.g., Polytrope)
+            The atmosphere containing information regarding the initial conditions of the run.
         checkpoint_TT : string
             path to TT checkpoint file
         T1_FT : NumPy array
@@ -260,17 +260,18 @@ def tt_to_ft(solver, checkpoint, checkpoint_TT, T1_FT, ln_rho1_FT, dS_factor, dT
     T1['g'] -= T1.integrate('x')['g']/solver.domain.bases[0].interval[-1]
     T1['g'] *= dT_ad_factor
     T1.set_scales(1, keep_data=True)
+    T1_fluc = np.copy(T1['g'])
+    T1.set_scales(1, keep_data=True)
     T1['g'] += T1_FT[z_slice]
     T1.differentiate('z', out=T1_z)
 
-    ln_rho1.set_scales(solver.domain.dealias, keep_data=True)
-    ln_rho1['g'] -= ln_rho1.integrate('x')['g']/solver.domain.bases[0].interval[-1]
-    ln_rho1['g'] *= dT_ad_factor
+
+    #Pressure neutral log rho fluctuations
+    atmosphere.T0.set_scales(1, keep_data=True)
+    ln_rho_fluc = -np.log(1 + T1_fluc / (T1_FT[z_slice] + atmosphere.T0['g']))
+    ln_rho1['g'] *= 0
     ln_rho1.set_scales(1, keep_data=True)
-    ln_rho1['g'] += ln_rho1_FT[z_slice]
-
-    print(dT_ad_factor, dS_factor)
-
+    ln_rho1['g'] += ln_rho1_FT[z_slice] + ln_rho_fluc
 
     u['g'] *= np.sqrt(dS_factor)
     w['g'] *= np.sqrt(dS_factor)
@@ -278,6 +279,7 @@ def tt_to_ft(solver, checkpoint, checkpoint_TT, T1_FT, ln_rho1_FT, dS_factor, dT
     w.differentiate('z', out=wz)
 
     dt /= np.sqrt(dS_factor)
+    print(solver, dt)
     return solver, dt
 
 

@@ -209,9 +209,9 @@ restart = args['--restart']
 not_corrected_times = True
 if args['--tt_to_ft_dir'] is not None and args['--FT']:
     logger.info("Starting FT run from TT state: {:s}".format(args['--tt_to_ft_dir']))
-    solver, dt = tt_to_ft(solver, checkpoint, *tt_to_ft_args[:-1])
+    solver, dt = tt_to_ft(solver, checkpoint, atmosphere, *tt_to_ft_args[:-1])
     mode = 'overwrite'
-if restart is None:
+elif restart is None:
     noise = global_noise(domain)
 
     T0 = atmosphere.T0
@@ -256,7 +256,6 @@ CFL.add_velocities(('u', 'w'))
 #TODO: define these properly, probably only need Nu, KE, log string
 flow = flow_tools.GlobalFlowProperty(solver, cadence=1)
 flow.add_property("Re_rms", name='Re')
-flow.add_property("vol_avg(Nu)", name='Re_avg')
 flow.add_property("Nu", name='Nu')
 flow.add_property("Ma_rms", name='Ma')
 flow.add_property("KE", name='KE')
@@ -288,7 +287,7 @@ try:
             Re_avg = flow.grid_average('Re')
             log_string =  'Iteration: {:5d}, '.format(solver.iteration)
             log_string += 'Time: {:8.3e} ({:8.3e} buoy / {:8.3e} diff), dt: {:8.3e}, '.format(solver.sim_time, solver.sim_time/t_buoy, solver.sim_time/t_diff,  dt)
-            log_string += 'Re: {:8.3e}/{:8.3e}/{:8.3e}, '.format(Re_avg, flow.max('Re'), flow.grid_average('Re_avg'))
+            log_string += 'Re: {:8.3e}/{:8.3e}, '.format(Re_avg, flow.max('Re'))
             log_string += 'Nu: {:8.3e}, '.format(flow.grid_average('Nu'))
             log_string += 'Ma: {:8.3e}, '.format(flow.grid_average('Ma'))
             log_string += 'KE: {:8.3e}, '.format(flow.grid_average('KE'))
