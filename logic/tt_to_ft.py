@@ -266,12 +266,12 @@ def tt_to_ft(solver, checkpoint, atmosphere, checkpoint_TT, T1_FT, ln_rho1_FT, d
     T1.differentiate('z', out=T1_z)
 
 
-    #Pressure neutral log rho fluctuations
-    atmosphere.T0.set_scales(1, keep_data=True)
-    ln_rho_fluc = -np.log(1 + T1_fluc / (T1_FT[z_slice] + atmosphere.T0['g']))
+    #No fluctuations in ln_rho to ensure mass conservation.
+    ### non-mass-conserving -- atmosphere.T0.set_scales(1, keep_data=True)
+    ### non-mass-conserving -- ln_rho_fluc = -np.log(1 + T1_fluc / (T1_FT[z_slice] + atmosphere.T0['g']))
     ln_rho1['g'] *= 0
     ln_rho1.set_scales(1, keep_data=True)
-    ln_rho1['g'] += ln_rho1_FT[z_slice] + ln_rho_fluc
+    ln_rho1['g'] = ln_rho1_FT[z_slice] ### + ln_rho_fluc
 
     u['g'] *= np.sqrt(dS_factor)
     w['g'] *= np.sqrt(dS_factor)
