@@ -210,6 +210,8 @@ def tt_to_ft_preliminaries(atmosphere, atmo_args, atmo_kwargs, path, time):
 
         # Solve TT-to-FT BVP
         T1_FT, ln_rho1_FT, dS_factor, dT_ad_factor, FT_Ra_factor = structure_bvp(atmosphere.__class__, atmo_args, atmo_kwargs, profiles, scalars)
+    else:
+        checkpoint_TT, T1_FT, ln_rho1_FT, dS_factor, dT_ad_factor, FT_Ra_factor = [None]*6
 
     checkpoint_TT   = MPI.COMM_WORLD.bcast(checkpoint_TT, root=0)
     T1_FT           = MPI.COMM_WORLD.bcast(T1_FT, root=0)
