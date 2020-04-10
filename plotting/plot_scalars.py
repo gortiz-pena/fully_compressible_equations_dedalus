@@ -51,9 +51,14 @@ fig4.add_field(2, 'IE_fluc')
 fig4.add_field(3, 'PE_fluc')
 fig4.add_field(4, 'TE_fluc')
 
+
+# M 
+fig5 = ScalarFigure(1, 1, col_in=6, fig_name='rho_fluc')
+fig5.add_field(0, 'rho_fluc')
+
 # Load in figures and make plots
 plotter = ScalarPlotter(root_dir, file_dir='scalar', fig_name=fig_name, start_file=start_file, n_files=n_files)
-figs = [fig1, fig2, fig3, fig4, figNu]
+figs = [fig1, fig2, fig3, fig4, figNu, fig5]
 plotter.load_figures(figs)
 plotter.plot_figures(dpi=int(args['--dpi']))
 plotter.plot_convergence_figures(dpi=int(args['--dpi']))

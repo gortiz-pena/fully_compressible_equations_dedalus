@@ -36,7 +36,7 @@ def initialize_output(solver, domain, data_dir,
     analysis_profile = solver.evaluator.add_file_handler(data_dir+"profiles", max_writes=max_writes, parallel=False, sim_dt=output_dt, mode=mode)
     analysis_scalar = solver.evaluator.add_file_handler(data_dir+"scalar", max_writes=max_writes, parallel=False,    sim_dt=output_dt, mode=mode)
 
-    basic_fields  = ['u_rms', 'v_rms', 'w_rms', 'vel_rms', 'enstrophy', 'T1', 'T1_z', 'T_full', 'ln_rho1', 'rho_full', 'Bx', 'By', 'Bz', 's_over_cp', 's_over_cp_z']
+    basic_fields  = ['u_rms', 'v_rms', 'w_rms', 'vel_rms', 'enstrophy', 'T1', 'T1_z', 'T_full', 'ln_rho1', 'rho_full', 'Bx', 'By', 'Bz', 's_over_cp', 's_over_cp_z', 'rho_fluc']
     fluid_numbers = ['Re_rms', 'Pe_rms', 'Ma_rms']
     energies      = ['KE', 'PE', 'IE', 'BE', 'TE', 'PE_fluc', 'IE_fluc', 'TE_fluc']
     fluxes        = ['ohm_flux_z', 'poynt_flux_z', 'enth_flux_z', 'KE_flux_z', 'PE_flux_z', 'visc_flux_z', 'F_cond_z', 'F_cond0_z', 'F_cond1_z', 'Nu']

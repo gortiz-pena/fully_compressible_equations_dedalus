@@ -111,6 +111,7 @@ class FCMHDEquations():
         # Thermo
         self.subs['ln_rho0']          = '(log(rho0))'
         self.subs['rho_full']         = '(rho0*exp(ln_rho1))'
+        self.subs['rho_fluc']         = '(rho_full - rho0)'
         self.subs['T_full']           = '(T0 + T1)'
             
         # Current

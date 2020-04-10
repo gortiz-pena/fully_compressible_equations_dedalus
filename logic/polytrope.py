@@ -25,7 +25,8 @@ class Polytrope():
         self.rho0      = domain.new_field()
         self.ln_rho0_z = domain.new_field()
         for f in [self.T0, self.T0_z, self.rho0, self.ln_rho0_z]:
-            f.meta['x']['constant'] = True
+            if domain.dim > 1:
+                f.meta['x']['constant'] = True
             if domain.dim == 3:
                 f.meta['y']['constant'] = True
             f.set_scales(self.domain.dealias)

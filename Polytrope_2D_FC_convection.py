@@ -31,6 +31,10 @@ Options:
     --overwrite                If flagged, force file mode to overwrite
     --seed=<seed>              RNG seed for initial conditoins [default: 42]
 
+    --tt_to_ft_dir=<dir>       Path to output directory of TT run to restart from
+    --tt_to_ft_time=<t>        Averaging window, in t_buoy, to measure TT data over [default: 100]
+
+
     --label=<label>            Optional additional case name label
     --root_dir=<dir>           Root directory for output [default: ./]
     --safety=<s>               CFL safety factor [default: 0.8]
@@ -55,6 +59,7 @@ from logic.checkpointing import Checkpoint
 from logic.fc_equations  import FCEquations2D
 from logic.polytrope     import Polytrope
 from logic.functions     import global_noise
+from logic.tt_to_ft      import tt_to_ft, tt_to_ft_preliminaries
 
 logger = logging.getLogger(__name__)
 args = docopt(__doc__)
@@ -82,7 +87,7 @@ else:
 if args['--label'] is not None:
     data_dir += "_{}".format(args['--label'])
 data_dir += '/'
-if MPI.COMM_WORLD.rank == 0:
+if MPI.COMM_WORLD.rank == 0 and args['--tt_to_ft_dir'] is None:
     if not os.path.exists('{:s}/'.format(data_dir)):
         os.makedirs('{:s}/'.format(data_dir))
     logdir = os.path.join(data_dir,'logs')
@@ -114,8 +119,31 @@ logger.info("Simulation resolution = {}x{}".format(nx, nz))
 n_rho = float(args['--n_rho'])
 epsilon = float(args['--epsilon'])
 gamma   = float(Fraction(args['--gamma']))
+Ra = float(args['--Rayleigh'])
+Pr = float(args['--Prandtl'])
 
-atmosphere = Polytrope(n_rho, epsilon, gamma=gamma)
+atmo_args = (n_rho, epsilon)
+atmo_kwargs = {'gamma' : gamma}
+
+atmosphere = Polytrope(*atmo_args, **atmo_kwargs)
+if args['--tt_to_ft_dir'] is not None and args['--FT']:
+    approx_t_buoy = np.sqrt(atmosphere.Lz/epsilon)
+    tt_to_ft_args = tt_to_ft_preliminaries(atmosphere, atmo_args, atmo_kwargs, args['--tt_to_ft_dir'], float(args['--tt_to_ft_time'])*approx_t_buoy)
+    ra_factor = tt_to_ft_args[-1]
+    Ra *= ra_factor
+
+    logger.info('updated Ra to {:.2e}'.format(Ra))
+    ra_str_split = data_dir.split('Ra')
+    data_dir = '{:s}Ra{:.2e}{:s}'.format(ra_str_split[0], Ra, data_dir.split(args['--Rayleigh'])[-1])
+    if MPI.COMM_WORLD.rank == 0:
+        if not os.path.exists('{:s}/'.format(data_dir)):
+            os.makedirs('{:s}/'.format(data_dir))
+        logdir = os.path.join(data_dir,'logs')
+        if not os.path.exists(logdir):
+            os.mkdir(logdir)
+    logger.info("saving run in: {}".format(data_dir))
+
+
 Lz = atmosphere.Lz
 x_basis = de.Fourier(  'x', nx, interval = [0, Lz*aspect], dealias=3/2)
 z_basis = de.Chebyshev('z', nz, interval = [0, Lz],        dealias=3/2)
@@ -129,8 +157,6 @@ problem = de.IVP(domain, variables=equations.variables, ncc_cutoff=1e-10)
 atmosphere.build_atmosphere(domain, problem)
 
 ### 2. Simulation parameters
-Ra = float(args['--Rayleigh'])
-Pr = float(args['--Prandtl'])
 t_buoy, t_diff = atmosphere.set_parameters(Ra=Ra, Pr=Pr, aspect=aspect)
 
 
@@ -181,6 +207,10 @@ checkpoint = Checkpoint(data_dir)
 checkpoint_dt = 25*t_buoy
 restart = args['--restart']
 not_corrected_times = True
+if args['--tt_to_ft_dir'] is not None and args['--FT']:
+    logger.info("Starting FT run from TT state: {:s}".format(args['--tt_to_ft_dir']))
+    solver, dt = tt_to_ft(solver, checkpoint, *tt_to_ft_args[:-1])
+    mode = 'overwrite'
 if restart is None:
     noise = global_noise(domain)
 
@@ -226,6 +256,7 @@ CFL.add_velocities(('u', 'w'))
 #TODO: define these properly, probably only need Nu, KE, log string
 flow = flow_tools.GlobalFlowProperty(solver, cadence=1)
 flow.add_property("Re_rms", name='Re')
+flow.add_property("vol_avg(Nu)", name='Re_avg')
 flow.add_property("Nu", name='Nu')
 flow.add_property("Ma_rms", name='Ma')
 flow.add_property("KE", name='KE')
@@ -257,7 +288,7 @@ try:
             Re_avg = flow.grid_average('Re')
             log_string =  'Iteration: {:5d}, '.format(solver.iteration)
             log_string += 'Time: {:8.3e} ({:8.3e} buoy / {:8.3e} diff), dt: {:8.3e}, '.format(solver.sim_time, solver.sim_time/t_buoy, solver.sim_time/t_diff,  dt)
-            log_string += 'Re: {:8.3e}/{:8.3e}, '.format(Re_avg, flow.max('Re'))
+            log_string += 'Re: {:8.3e}/{:8.3e}/{:8.3e}, '.format(Re_avg, flow.max('Re'), flow.grid_average('Re_avg'))
             log_string += 'Nu: {:8.3e}, '.format(flow.grid_average('Nu'))
             log_string += 'Ma: {:8.3e}, '.format(flow.grid_average('Ma'))
             log_string += 'KE: {:8.3e}, '.format(flow.grid_average('KE'))
