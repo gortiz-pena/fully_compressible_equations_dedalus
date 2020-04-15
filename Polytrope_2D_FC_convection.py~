@@ -245,9 +245,6 @@ max_dt    = 0.2*t_buoy
 if dt is None: dt = max_dt
 analysis_tasks = initialize_output(solver, domain, data_dir, mode=mode, magnetic=False, threeD=False,
                                     output_dt = 0.2*t_buoy)
-                                    
-# Adding dissipation outputs
-analysis_tasks = add_dissipation_outputs(analysis_tasks, domain)
 
 # CFL
 CFL = flow_tools.CFL(solver, initial_dt=dt, cadence=1, safety=cfl_safety,
