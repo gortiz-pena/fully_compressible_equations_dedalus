@@ -91,34 +91,3 @@ def initialize_output(solver, domain, data_dir,
 
     return analysis_tasks
 
-def add_dissipation_outputs(analysis_tasks, domain):
-
-    analysis_tasks['scalar'].add_task("integ(visc_heat*rho_full*Cv)", name="viscous_heating")
-    analysis_tasks['scalar'].add_task("integ(visc_heat*rho_full*Cv/(T_full))", name="viscous_entropy")
-    analysis_tasks['scalar'].add_task("integ((dx(T_full)**2 + dy(T_full)**2 + dz(T_full)**2)/(T_full**2))", name="thermal_entropy")
-    analysis_tasks['scalar'].add_task("integ((g*s_full*rho_full*w/Cp))", name="adiabatic_work")
-    analysis_tasks['scalar'].add_task("integ(s_full*rho_full*UdotGrad(T_full, dz(T_full)))", name = "full_work")
-    
-    analysis_tasks['profile'].add_task("plane_avg(visc_heat*rho_full*Cv)", name="viscous_heating")
-    
-    ix, iy, iz = domain.bases[0].interval, domain.bases[1].interval, domain.bases[-1].interval
-    if de_domain.dimensions == 3:
-        Ly = de_domain.bases[1].interval[-1]
-        analysis_tasks['slices'].add_task("interp(visc_heat*rho_full*Cv, y={})".format(iy[1]/2), name="viscous_heating")
-        analysis_tasks['slices'].add_task("interp(visc_heat*rho_full*Cv, z={})".format(0.95*iz[1]), name="viscous_heating near top")
-        analysis_tasks['slices'].add_task("interp(visc_heat*rho_full*Cv z={})".format(0.5*iz[1]), name="viscous_heating midplane")
-        
-        analysis_tasks['scalar'].add_task("integ(right(F_cond_z), 'x', 'y')", name = "L_u")
-        analysis_tasks['scalar'].add_task("integ(right(-F_cond_z/T_full), 'x', 'y')", name = "entropy_t")
-        analysis_tasks['scalar'].add_task("integ(left(-F_cond_z/T_full), 'x', 'y')", name = "entropy_b")
-
-
-    if de_domain.dimensions == 2:
-        analysis_tasks['scalar'].add_task("integ(right(F_cond_z), 'x')", name = "L_u")
-        analysis_tasks['scalar'].add_task("integ(right(-F_cond_z/T_full), 'x')", name = "entropy_t")
-        analysis_tasks['scalar'].add_task("integ(left(-F_cond_z/T_full), 'x')", name = "entropy_b")
-        
-        analysis_tasks['slices'].add_task("visc_heat*rho_full*Cv", name="viscous_heating")
-        analysis_tasks['slices'].add_task("s_full")
-        
-    return analysis_tasks
