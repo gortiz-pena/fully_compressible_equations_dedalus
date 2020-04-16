@@ -1,0 +1,22 @@
+#PBS -S /bin/bash
+#PBS -N 2D_nrho3_Ra1e4_poly_TT
+#PBS -l select=3:ncpus=24:mpiprocs=24:model=has
+#PBS -l walltime=24:00:00
+#PBS -j oe
+#PBS -q long
+
+export dedalus_script=Polytrope_2D_FC_convection
+export dedalus_dir=FC_poly_2D_nrho3_Ra1e4_TT
+
+
+cd $PBS_O_WORKDIR
+
+mkdir ../$dedalus_dir
+
+source /home1/gortizpe/dedalus/bin/activate
+
+cd ../
+
+date
+mpiexec -np 64 python3 $dedalus_script.py --nz=128 --nx=512 --Ra=1e4 --n_rho=3 --NS --run_time_wall=23.5 > $dedalus_dir/out.$PBS_JOBID
+date

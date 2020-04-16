@@ -54,7 +54,7 @@ from dedalus import public as de
 from dedalus.extras import flow_tools
 from dedalus.tools  import post
 
-from logic.output        import initialize_output
+from logic.output        import initialize_output, add_dissipation_outputs
 from logic.checkpointing import Checkpoint
 from logic.fc_equations  import FCEquations2D
 from logic.polytrope     import Polytrope
